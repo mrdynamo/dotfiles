@@ -1,9 +1,0 @@
-[settings]
-experimental = true
-
-
-[settings.python]
-compile = false
-
-[tools]
-chezmoi = "latest"
