@@ -6,4 +6,4 @@ experimental = true
 compile = false
 
 [tools]
-chezmoi = "latest"
+atuin = "18.16.0"
