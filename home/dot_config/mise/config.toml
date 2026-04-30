@@ -7,3 +7,4 @@ compile = false
 
 [tools]
 atuin = "18.16.0"
+chezmoi = "2.70.2"
