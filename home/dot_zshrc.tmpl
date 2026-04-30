@@ -27,12 +27,12 @@ if [[ -d "$ZSH" ]]; then
   source "$ZSH/oh-my-zsh.sh"
 fi
 
-# Aliases (guarded for WSL / msys where windows executables are available)
-if [[ -n $WSL_DISTRO_NAME || "$OSTYPE" == msys ]]; then
+# WSL Aliases: only if running in WSL2, avoid on native Linux
+{{- if (and (eq .chezmoi.os "linux") (eq .chezmoi.kernel.osRelease "*wsl2*")) }}
   alias ssh='ssh.exe'
   alias ssh-add='ssh-add.exe'
   alias op='op.exe'
-fi
+{{- end }}
 
 # Optionally show kube context in prompt, only if kube_ps1 is available
 if command -v kube_ps1 >/dev/null 2>&1; then
