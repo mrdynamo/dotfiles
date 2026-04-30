@@ -20,7 +20,7 @@ ZSH_THEME="powerlevel10k/powerlevel10k"
 
 
 # Plugins - keep list, but heavy plugins are guarded below if necessary
-plugins=(git kubectl kube-ps1 mise zsh-autosuggestions zsh-syntax-highlighting)
+plugins=(common-aliases encode64 git gh kubectl kube-ps1 k9s mise zsh-autosuggestions zsh-syntax-highlighting)
 
 # Load oh-my-zsh (fast; uses $ZSH and $plugins above)
 if [[ -d "$ZSH" ]]; then
