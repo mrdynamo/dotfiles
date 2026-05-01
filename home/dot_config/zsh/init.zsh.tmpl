@@ -9,11 +9,56 @@ case "$-" in
   *) return;;
 esac
 
+## [1.1] Secret-safe history guards
+# Never persist OP service account token exports in zsh history.
+_dotfiles_zsh_addhistory_guard() {
+  emulate -L zsh
+  local cmd="$1"
+
+  if [[ "$cmd" =~ '(^|[[:space:]])OP_SERVICE_ACCOUNT_TOKEN=' ]] || [[ "$cmd" =~ '(^|[[:space:]])export[[:space:]]+OP_SERVICE_ACCOUNT_TOKEN=' ]]; then
+    return 1
+  fi
+
+  return 0
+}
+autoload -Uz add-zsh-hook
+add-zsh-hook zshaddhistory _dotfiles_zsh_addhistory_guard
+
+# Leading-space commands are ignored by history when this is enabled.
+setopt HIST_IGNORE_SPACE
+
 ## [2] Prompt bootstrap (must stay near top)
 # Powerlevel10k instant prompt should stay near the top for best startup speed.
 if [[ -r "${XDG_CACHE_HOME:-$HOME/.cache}/p10k-instant-prompt-${(%):-%n}.zsh" ]]; then
   source "${XDG_CACHE_HOME:-$HOME/.cache}/p10k-instant-prompt-${(%):-%n}.zsh"
 fi
+
+## [2.1] OP service account bootstrap for remote Linux
+{{- if and .isLinux (not .isWSL) }}
+_dotfiles_prompt_op_service_account_token() {
+  emulate -L zsh
+
+  # Only prompt on remote SSH sessions when op is installed and token is unset.
+  [[ -n "${OP_SERVICE_ACCOUNT_TOKEN:-}" ]] && return 0
+  [[ -n "${SSH_CONNECTION:-}${SSH_CLIENT:-}${SSH_TTY:-}" ]] || return 0
+  command -v op >/dev/null 2>&1 || return 0
+
+  local token=""
+  print -P "%F{yellow}1Password service account token required for this host.%f"
+  read -r -s "token?Paste OP_SERVICE_ACCOUNT_TOKEN (input hidden): " || return 1
+  print
+
+  [[ -n "$token" ]] || return 1
+  export OP_SERVICE_ACCOUNT_TOKEN="$token"
+  unset token
+
+  # Remove any historical entries that match configured Atuin history filters.
+  if command -v atuin >/dev/null 2>&1; then
+    atuin history prune >/dev/null 2>&1 || true
+  fi
+}
+_dotfiles_prompt_op_service_account_token
+{{- end }}
 
 ## [3] Homebrew shellenv
 # Use chezmoi machine booleans to choose the likely brew location by platform.
