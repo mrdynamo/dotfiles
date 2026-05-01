@@ -1,51 +1,61 @@
-# Cleaned and guarded ZSH configuration
-# Keep login-only environment setup (PATH, pyenv --path, NVM_DIR exports) in ~/.zprofile
+## -----------------------------------------------------------------------------
+## ~/.zshrc (interactive shell config)
+## Purpose:
+## - Interactive UX: prompt, aliases, completions, plugins, keybindings
+## - Keep login-only PATH/env exports in ~/.zprofile
+## -----------------------------------------------------------------------------
 
-# Exit early for non-interactive shells
+## [1] Interactive shell guard
+# Exit early for non-interactive shells to keep scripts fast and deterministic.
 case "$-" in
   *i*) ;;
   *) return;;
 esac
 
-# p10k instant prompt - keep near top for fastest prompt
+## [2] Prompt bootstrap (must stay near top)
+# Powerlevel10k instant prompt should stay near the top for best startup speed.
 if [[ -r "${XDG_CACHE_HOME:-$HOME/.cache}/p10k-instant-prompt-${(%):-%n}.zsh" ]]; then
   source "${XDG_CACHE_HOME:-$HOME/.cache}/p10k-instant-prompt-${(%):-%n}.zsh"
 fi
 
-# Path to your oh-my-zsh installation (required before sourcing)
+## [3] Framework and theme
+# oh-my-zsh base path must be set before loading oh-my-zsh.sh.
 export ZSH="$HOME/.oh-my-zsh"
 
-# Theme selection: set before sourcing oh-my-zsh
+# Theme selection must happen before sourcing oh-my-zsh.
 ZSH_THEME="powerlevel10k/powerlevel10k"
 
+## [4] Plugin list
+# Keep this list lean. kubectl plugin is intentionally excluded because it
+# early-exits when kubectl is not on PATH at startup (mise adds it later).
+plugins=(common-aliases encode64 git gh kube-ps1 k9s mise zsh-autosuggestions zsh-syntax-highlighting)
 
-# Plugins - keep list, but heavy plugins are guarded below if necessary
-plugins=(common-aliases encode64 git gh kubectl kube-ps1 k9s mise zsh-autosuggestions zsh-syntax-highlighting)
-
-# Load oh-my-zsh (fast; uses $ZSH and $plugins above)
+## [5] Load oh-my-zsh
 if [[ -d "$ZSH" ]]; then
   source "$ZSH/oh-my-zsh.sh"
 fi
 
-# WSL Aliases: only if running in WSL2, avoid on native Linux
+## [6] OS-specific aliases
+# WSL aliases: only render on WSL2 via chezmoi template condition.
 {{- if (and (eq .chezmoi.os "linux") (eq .chezmoi.kernel.osRelease "*wsl2*")) }}
   alias ssh='ssh.exe'
   alias ssh-add='ssh-add.exe'
   alias op='op.exe'
 {{- end }}
 
-# Optionally show kube context in prompt, only if kube_ps1 is available
+## [7] Prompt context helpers
 if command -v kube_ps1 >/dev/null 2>&1; then
   PROMPT='$(kube_ps1)'$PROMPT
 fi
 
-# pyenv: keep path-related init in .zprofile; interactive init here if available
+## [8] Interactive runtime managers
+# pyenv interactive init belongs here; path init stays in ~/.zprofile.
 if command -v pyenv >/dev/null 2>&1; then
   export PYENV_ROOT="$HOME/.pyenv"
   command -v pyenv >/dev/null 2>&1 && eval "$(pyenv init -)"
 fi
 
-# nvm: only source if the nvm script exists (avoid errors in non-standard installs)
+# nvm: only source when installed.
 export NVM_DIR="$HOME/.nvm"
 if [[ -s "$NVM_DIR/nvm.sh" ]]; then
   # shellcheck disable=SC1090
@@ -56,25 +66,38 @@ if [[ -s "$NVM_DIR/bash_completion" ]]; then
   source "$NVM_DIR/bash_completion"
 fi
 
-# mise: guard its activation
+# mise: activate once for directory-aware tool PATH updates.
 if command -v mise >/dev/null 2>&1; then
-  # prefer `mise activate zsh` only once
   eval "$(mise activate zsh)"
 fi
 
-# Atuin (if installed)
+## [9] Shell tooling integrations
+# Atuin history integration (optional).
 if command -v atuin >/dev/null 2>&1; then
   eval "$(atuin init zsh)"
   eval "$(atuin hex init)"
   source "$HOME/.atuin/bin/env"
 fi
 
-# kubectl completions (guarded)
-if command -v kubectl >/dev/null 2>&1; then
-  source <(kubectl completion zsh)
-fi
+## [10] Kubernetes alias + completion
+# k alias is intentionally unconditional. In dirs without kubectl on PATH,
+# command execution fails normally; in mise-enabled repos it works immediately.
+alias k=kubectl
 
-# Example: guard zsh-syntax-highlighting and autosuggestions if plugin didn't autoload
+# Completion loading is lazy and one-time, after mise has updated PATH.
+_kubectl_completion_loaded=0
+_setup_kubectl_completions() {
+  (( _kubectl_completion_loaded )) && return
+  command -v kubectl >/dev/null 2>&1 || return
+  source <(kubectl completion zsh) 2>/dev/null
+  compdef __start_kubectl kubectl k 2>/dev/null
+  _kubectl_completion_loaded=1
+}
+autoload -Uz add-zsh-hook
+add-zsh-hook precmd _setup_kubectl_completions
+
+## [11] Defensive plugin sourcing (fallback)
+# Keep these guards in case plugin autoloading is unavailable.
 if [[ -f "$ZSH/custom/plugins/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh" ]]; then
   source "$ZSH/custom/plugins/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh"
 fi
@@ -82,12 +105,14 @@ if [[ -f "$ZSH/custom/plugins/zsh-autosuggestions/zsh-autosuggestions.zsh" ]]; t
   source "$ZSH/custom/plugins/zsh-autosuggestions/zsh-autosuggestions.zsh"
 fi
 
-# User customizations: keep minimal and fast. Move slow, login-only exports to ~/.zprofile
-# alias, functions, and prompt tweaks go below
+## [12] User customizations
+# Put aliases/functions/prompt tweaks below.
+# Keep login-only and heavy PATH exports in ~/.zprofile.
 
 export PATH="$HOME/.local/bin:$PATH"
 
-# Source the full p10k config if present
+## [13] Prompt config
+# Source full p10k config if present.
 [[ -f ~/.p10k.zsh ]] && source ~/.p10k.zsh
 
-# End of .zshrc
+## End of ~/.zshrc

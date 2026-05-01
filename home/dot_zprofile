@@ -1,23 +1,32 @@
-# Login-only environment setup: place heavy PATH and env exports here
-# This file is read by login shells. Keep fast interactive-only config in ~/.zshrc
+## -----------------------------------------------------------------------------
+## ~/.zprofile (login shell environment)
+## Purpose:
+## - Login-time PATH and environment exports
+## - Keep interactive-only UX setup in ~/.zshrc
+## -----------------------------------------------------------------------------
 
-# Add user-local bin early so installed tools are found in scripts
+## [1] Base PATH
+# Keep user-local bin early so user-installed tools are available everywhere.
 export PATH="$HOME/.local/bin:$PATH"
 
-# pyenv: initialize the PATH portion here (login-time)
+## [2] Python environment bootstrap
+# pyenv PATH initialization should happen in login shells.
 export PYENV_ROOT="$HOME/.pyenv"
 if command -v pyenv >/dev/null 2>&1; then
   eval "$(pyenv init --path)"
 fi
 
-# nvm: make node available for login shells (if installed)
+## [3] Node environment bootstrap
+# nvm is loaded for login shells when installed.
 export NVM_DIR="$HOME/.nvm"
 [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
 
-# Krew (kubectl plugin manager) path
+## [4] Kubernetes tooling path
+# Krew bin path for kubectl plugins.
 export KREW_ROOT="${KREW_ROOT:-$HOME/.krew}"
 export PATH="${KREW_ROOT}/bin:$PATH"
 
-# Any other slow/login-only exports can be added here.
-# Keep interactive-only initialization (prompt, completions, heavy evals)
-# in ~/.zshrc to avoid extra work for non-login interactive shells.
+## [5] Extension area
+# Add additional login-only exports below.
+# Keep prompt, aliases, completions, and other interactive-only behavior in
+# ~/.zshrc to avoid unnecessary overhead in non-interactive contexts.
