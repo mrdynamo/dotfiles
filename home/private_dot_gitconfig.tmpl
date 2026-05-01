@@ -1,0 +1,21 @@
+[user]
+  name = mrdynamo
+	email = mrdynamo@dynamiclab.org
+  signingkey = ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAINYeXfOCnOz6FHmaKdJGtHyvhT+FANW2FHRPYZurzZZa
+
+[gpg]
+	format = ssh
+
+[gpg "ssh"]
+{{- if eq .chezmoi.os "darwin" }}
+	program = /Applications/1Password.app/Contents/MacOS/op-ssh-sign
+{{- else if and (eq .chezmoi.os "linux") (contains "microsoft" (lower .chezmoi.kernel.osRelease)) }}
+{{- $userProfile := (env "USERPROFILE") }}
+{{- $userProfileUnix := (replace "\\" "/" $userProfile) }}
+{{- $userFromProfile := (base $userProfileUnix) }}
+{{- $windowsUsername := ($userFromProfile | default (env "USERNAME") | default .chezmoi.username) }}
+	program = /mnt/c/Users/{{ $windowsUsername }}/AppData/Local/Microsoft/WindowsApps/op-ssh-sign-wsl.exe
+{{- end }}
+
+[commit]
+	gpgsign = true
