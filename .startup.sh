@@ -29,6 +29,52 @@ command_exists() {
     command -v "$1" >/dev/null 2>&1
 }
 
+setup_op_service_account_token() {
+    local token_file="$HOME/.config/op/service-account-token.env"
+    local token
+    local token_quoted
+
+    # Service-account flow is only needed on native Linux hosts.
+    [[ "$OS" == "linux" ]] || return
+    if is_wsl; then
+        return
+    fi
+
+    if [[ -f "$token_file" ]]; then
+        log_ok "1Password service account token file already exists"
+        return
+    fi
+
+    # curl|bash bootstrap is non-interactive; avoid blocking for input.
+    if [[ ! -t 0 || ! -t 1 ]]; then
+        log_warn "Skipping OP service account prompt (non-interactive bootstrap)"
+        log_warn "Create $token_file with: export OP_SERVICE_ACCOUNT_TOKEN=<token>"
+        return
+    fi
+
+    log_info "Configure 1Password service account token for remote Linux auth"
+    read -r -s -p "Paste OP_SERVICE_ACCOUNT_TOKEN (input hidden, leave empty to skip): " token
+    printf "\n"
+
+    if [[ -z "$token" ]]; then
+        log_warn "No OP service account token provided; skipping"
+        return
+    fi
+
+    mkdir -p "$HOME/.config/op"
+    chmod 700 "$HOME/.config/op"
+
+    printf -v token_quoted '%q' "$token"
+    {
+        printf "# Created by dotfiles bootstrap on %s\n" "$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+        printf "export OP_SERVICE_ACCOUNT_TOKEN=%s\n" "$token_quoted"
+    } >"$token_file"
+    chmod 600 "$token_file"
+
+    unset token token_quoted
+    log_ok "Stored OP service account token in $token_file"
+}
+
 detect_os() {
     case "$(uname -s)" in
         Darwin*) echo "macos" ;;
@@ -293,6 +339,7 @@ main() {
     set_default_shell_to_zsh_if_possible
     initialize_dotfiles
     install_mise_tools
+    setup_op_service_account_token
     print_post_install_notes
 }
 
