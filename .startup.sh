@@ -173,6 +173,22 @@ install_brew_packages() {
     log_ok "Core brew packages installed"
 }
 
+install_oh_my_zsh_if_needed() {
+    if [[ -d "$HOME/.oh-my-zsh" ]]; then
+        log_ok "Oh My Zsh already installed"
+        return
+    fi
+
+    if ! command_exists curl; then
+        die "curl is required to install Oh My Zsh"
+    fi
+
+    log_info "Installing Oh My Zsh"
+    # Keep user's existing ~/.zshrc and avoid entering an interactive zsh shell.
+    RUNZSH=no CHSH=no KEEP_ZSHRC=yes sh -c "$(curl -fsSL https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh)" "" --unattended
+    log_ok "Oh My Zsh installed"
+}
+
 set_default_shell_to_zsh_if_possible() {
     local zsh_bin
     zsh_bin="$(command -v zsh || true)"
@@ -236,6 +252,7 @@ main() {
     install_homebrew_if_needed
     initialize_brew_env
     install_brew_packages
+    install_oh_my_zsh_if_needed
     set_default_shell_to_zsh_if_possible
     initialize_dotfiles
     print_post_install_notes
