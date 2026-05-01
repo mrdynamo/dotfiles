@@ -200,7 +200,10 @@ ensure_shell_is_listed() {
 
 set_default_shell_to_zsh_if_possible() {
     local zsh_bin
+    local current_user
+    local current_shell
     zsh_bin="$(command -v zsh || true)"
+    current_user="$(id -un)"
 
     if [[ -z "$zsh_bin" ]]; then
         log_warn "zsh not found on PATH; skipping default shell change"
@@ -219,13 +222,33 @@ set_default_shell_to_zsh_if_possible() {
         return
     fi
 
+    current_shell="$(getent passwd "$current_user" | cut -d: -f7 2>/dev/null || true)"
+    if [[ "$current_shell" == "$zsh_bin" ]]; then
+        log_ok "Login shell already set to $zsh_bin"
+        return
+    fi
+
     if ! ensure_shell_is_listed "$zsh_bin"; then
         log_warn "Cannot set default shell because $zsh_bin is not registered in /etc/shells"
         return
     fi
 
     log_info "Setting default shell to $zsh_bin for current user"
-    chsh -s "$zsh_bin" || log_warn "Could not change default shell automatically"
+
+    if chsh -s "$zsh_bin"; then
+        log_ok "Default shell updated with chsh"
+        return
+    fi
+
+    if command_exists sudo; then
+        log_warn "Direct chsh failed; retrying with sudo for current user only"
+        if sudo chsh -s "$zsh_bin" "$current_user"; then
+            log_ok "Default shell updated with sudo chsh"
+            return
+        fi
+    fi
+
+    log_warn "Could not change default shell automatically"
 }
 
 initialize_dotfiles() {
