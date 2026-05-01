@@ -1,5 +1,5 @@
 ####################################################################################################
-## Common
+## Init Configuration
 ####################################################################################################
 
 ## [1] Interactive shell guard
@@ -15,7 +15,7 @@ if [[ -r "${XDG_CACHE_HOME:-$HOME/.cache}/p10k-instant-prompt-${(%):-%n}.zsh" ]]
   source "${XDG_CACHE_HOME:-$HOME/.cache}/p10k-instant-prompt-${(%):-%n}.zsh"
 fi
 
-## [2b] Homebrew shellenv
+## [3] Homebrew shellenv
 # Use chezmoi machine booleans to choose the likely brew location by platform.
 {{- if .isMacOS }}
 if [[ -x /opt/homebrew/bin/brew ]]; then
@@ -37,19 +37,19 @@ if command -v brew >/dev/null 2>&1; then
 fi
 {{- end }}
 
-## [3] Framework and theme
+## [4] Framework and theme
 # oh-my-zsh base path must be set before loading oh-my-zsh.sh.
 export ZSH="$HOME/.oh-my-zsh"
 
 # Theme selection must happen before sourcing oh-my-zsh.
 ZSH_THEME="powerlevel10k/powerlevel10k"
 
-## [4] Plugin list
+## [5] Plugin list
 # Keep this list lean. kubectl plugin is intentionally excluded because it
 # early-exits when kubectl is not on PATH at startup (mise adds it later).
 plugins=(common-aliases encode64 git gh kube-ps1 k9s mise zsh-autosuggestions zsh-syntax-highlighting)
 
-## [5] Load oh-my-zsh
+## [6] Load oh-my-zsh
 if [[ -d "$ZSH" ]]; then
   source "$ZSH/oh-my-zsh.sh"
 fi
@@ -72,7 +72,7 @@ if command -v atuin >/dev/null 2>&1; then
   eval "$(atuin hex init)"
 fi
 
-## [11] Defensive plugin sourcing (fallback)
+## [10] Defensive plugin sourcing (fallback)
 # Keep these guards in case plugin autoloading is unavailable.
 if [[ -f "$ZSH/custom/plugins/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh" ]]; then
   source "$ZSH/custom/plugins/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh"
@@ -81,46 +81,12 @@ if [[ -f "$ZSH/custom/plugins/zsh-autosuggestions/zsh-autosuggestions.zsh" ]]; t
   source "$ZSH/custom/plugins/zsh-autosuggestions/zsh-autosuggestions.zsh"
 fi
 
-## [12] User customizations
+## [11] User customizations
 # Put aliases/functions/prompt tweaks below.
 # Keep login-only and heavy PATH exports in ~/.zprofile.
 
 export PATH="$HOME/.local/bin:$PATH"
 
-## [13] Prompt config
+## [12] Prompt config
 # Source full p10k config if present.
 [[ -f ~/.p10k.zsh ]] && source ~/.p10k.zsh
-
-
-####################################################################################################
-## WSL Specific
-####################################################################################################
-
-
-
-
-####################################################################################################
-## Linux Specific
-####################################################################################################
-
-
-
-
-####################################################################################################
-## MacOS Specific
-####################################################################################################
-
-
-
-
-####################################################################################################
-## Personal Specific
-####################################################################################################
-
-
-
-
-####################################################################################################
-## Work Specific
-####################################################################################################
-
