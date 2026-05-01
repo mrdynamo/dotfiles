@@ -9,11 +9,11 @@
 {{- if $isMacOS }}{{- $platform = "macos" -}}{{- end -}}
 {{- if $isWSL }}{{- $platform = "wsl2" -}}{{- end -}}
 data:
-  machineClass: {{ $machineClass }}
   isPersonal: {{ eq $machineClass "personal" }}
   isWork: {{ eq $machineClass "work" }}
   isLinux: {{ $isLinux }}
   isMacOS: {{ $isMacOS }}
   isWSL: {{ $isWSL }}
+  machineClass: {{ $machineClass }}
   platform: {{ $platform }}
   profile: {{ $machineClass }}-{{ $platform }}
