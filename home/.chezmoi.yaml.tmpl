@@ -8,8 +8,13 @@
 {{- $platform := "linux" -}}
 {{- if $isMacOS }}{{- $platform = "macos" -}}{{- end -}}
 {{- if $isWSL }}{{- $platform = "wsl2" -}}{{- end -}}
+{{- $isPersonal := eq $machineClass "personal" -}}
+{{- $useOnePasswordServiceAccount := and $isPersonal $isLinux (not $isWSL) -}}
+onepassword:
+  command: op
+  mode: {{ if $useOnePasswordServiceAccount }}service-account{{ else }}account{{ end }}
 data:
-  isPersonal: {{ eq $machineClass "personal" }}
+  isPersonal: {{ $isPersonal }}
   isWork: {{ eq $machineClass "work" }}
   isLinux: {{ $isLinux }}
   isMacOS: {{ $isMacOS }}
