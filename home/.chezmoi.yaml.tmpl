@@ -1,4 +1,7 @@
-{{- $machineClass := promptChoiceOnce . "machineClass" "Machine class" (list "personal" "work") -}}
+{{- $machineClassInput := promptStringOnce . "machineClass" "Machine class ([p] personal / [w] work, default: personal)" -}}
+{{- $machineClassChoice := lower (trim $machineClassInput) -}}
+{{- $machineClass := "personal" -}}
+{{- if or (eq $machineClassChoice "w") (eq $machineClassChoice "work") }}{{- $machineClass = "work" -}}{{- end -}}
 {{- $isLinux := eq .chezmoi.os "linux" -}}
 {{- $isMacOS := eq .chezmoi.os "darwin" -}}
 {{- $isWSL := and $isLinux (contains "microsoft" (lower .chezmoi.kernel.osrelease)) -}}
