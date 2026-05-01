@@ -29,14 +29,6 @@ command_exists() {
     command -v "$1" >/dev/null 2>&1
 }
 
-append_line_if_missing() {
-    local line="$1"
-    local file="$2"
-
-    touch "$file"
-    grep -Fqx "$line" "$file" || printf "%s\n" "$line" >>"$file"
-}
-
 detect_os() {
     case "$(uname -s)" in
         Darwin*) echo "macos" ;;
@@ -133,11 +125,6 @@ resolve_brew_bin() {
 
 initialize_brew_env() {
     BREW_BIN="$(resolve_brew_bin)" || die "Could not resolve Homebrew binary after installation"
-
-    # Persist shellenv for both common interactive shells.
-    BREW_SHELLENV_LINE="eval \"\$(${BREW_BIN} shellenv)\""
-    append_line_if_missing "$BREW_SHELLENV_LINE" "$HOME/.bashrc"
-    append_line_if_missing "$BREW_SHELLENV_LINE" "$HOME/.zprofile"
 
     # Make brew available immediately in this script process.
     eval "$(${BREW_BIN} shellenv)"
