@@ -26,7 +26,11 @@ export NVM_DIR="$HOME/.nvm"
 export KREW_ROOT="${KREW_ROOT:-$HOME/.krew}"
 export PATH="${KREW_ROOT}/bin:$PATH"
 
-## [5] Extension area
+## [5] Editor
+export EDITOR="nano"
+export VISUAL="nano"
+
+## [6] Extension area
 # Add additional login-only exports below.
 # Keep prompt, aliases, completions, and other interactive-only behavior in
 # ~/.zshrc to avoid unnecessary overhead in non-interactive contexts.
