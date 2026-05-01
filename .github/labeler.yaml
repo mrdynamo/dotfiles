@@ -1,0 +1,18 @@
+---
+area/docs:
+  - changed-files:
+      - any-glob-to-any-file:
+          - README.md
+area/github:
+  - changed-files:
+      - any-glob-to-any-file:
+          - .github/**/*
+area/mise:
+  - changed-files:
+      - any-glob-to-any-file:
+          - /home/dot_config/mise/config.toml
+area/renovate:
+  - changed-files:
+      - any-glob-to-any-file:
+          - .renovate/**/*
+          - .renovaterc.json5

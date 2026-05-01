@@ -1,0 +1,32 @@
+{
+    $schema: "https://docs.renovatebot.com/renovate-schema.json",
+    extends: [
+        "config:recommended",
+        "helpers:pinGitHubActionDigests",
+        "github>mrdynamo/dotfiles//.renovate/semanticCommits.json5",
+        "github>mrdynamo/dotfiles//.renovate/labels.json5",
+        ":automergeBranch",
+        ":disableRateLimiting",
+        ":dependencyDashboard",
+        ":semanticCommits",
+        ":timezone(America/Chicago)",
+      ],
+      dependencyDashboardTitle: "Renovate Dashboard 🤖",
+      suppressNotifications: [
+        "prEditedNotification",
+        "prIgnoreNotification",
+      ],
+      enabledManagers: [
+        "mise",
+        "github-actions"
+      ],
+      includePaths: [
+        "home/dot_config/mise/config.toml",
+        ".github/workflows/**",
+    ],
+    mise: {
+        managerFilePatterns: [
+            "/home/dot_config/mise/config\\.toml$/"
+        ],
+    },
+}
