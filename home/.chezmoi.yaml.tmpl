@@ -1,3 +1,6 @@
+####################################################################################################
+## Machine Type Detection and Configuration
+####################################################################################################
 {{- $machineClassInput := promptStringOnce . "machineClass" "Machine class ([p] personal / [w] work, default: personal)" -}}
 {{- $machineClassChoice := lower (trim $machineClassInput) -}}
 {{- $machineClass := "personal" -}}
@@ -9,10 +12,6 @@
 {{- if $isMacOS }}{{- $platform = "macos" -}}{{- end -}}
 {{- if $isWSL }}{{- $platform = "wsl2" -}}{{- end -}}
 {{- $isPersonal := eq $machineClass "personal" -}}
-{{- $useOnePasswordServiceAccount := and $isPersonal $isLinux (not $isWSL) -}}
-onepassword:
-  command: op
-  mode: {{ if $useOnePasswordServiceAccount }}service-account{{ else }}account{{ end }}
 data:
   isPersonal: {{ $isPersonal }}
   isWork: {{ eq $machineClass "work" }}
@@ -22,3 +21,12 @@ data:
   machineClass: {{ $machineClass }}
   platform: {{ $platform }}
   profile: {{ $machineClass }}-{{ $platform }}
+
+
+####################################################################################################
+## personal-Linux
+####################################################################################################
+{{- $useOnePasswordServiceAccount := and $isPersonal $isLinux (not $isWSL) -}}
+onepassword:
+  command: op
+  mode: {{ if $useOnePasswordServiceAccount }}service-account{{ else }}account{{ end }}
