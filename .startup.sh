@@ -45,16 +45,21 @@ setup_op_service_account_token() {
         return
     fi
 
-    # curl|bash bootstrap is non-interactive; avoid blocking for input.
-    if [[ ! -t 0 || ! -t 1 ]]; then
-        log_warn "Skipping OP service account prompt (non-interactive bootstrap)"
-        log_warn "Create $token_file with: export OP_SERVICE_ACCOUNT_TOKEN=<token>"
-        return
-    fi
+    # Allow non-interactive bootstrap to pass token via environment.
+    token="${OP_SERVICE_ACCOUNT_TOKEN:-}"
 
-    log_info "Configure 1Password service account token for remote Linux auth"
-    read -r -s -p "Paste OP_SERVICE_ACCOUNT_TOKEN (input hidden, leave empty to skip): " token
-    printf "\n"
+    if [[ -z "$token" ]]; then
+        # curl|bash does not provide a tty stdin, so read from /dev/tty when available.
+        if [[ -r /dev/tty && -w /dev/tty ]]; then
+            log_info "Configure 1Password service account token for remote Linux auth"
+            read -r -s -p "Paste OP_SERVICE_ACCOUNT_TOKEN (input hidden, leave empty to skip): " token </dev/tty
+            printf "\n" >/dev/tty
+        else
+            log_warn "Skipping OP service account prompt (no TTY available)"
+            log_warn "Set OP_SERVICE_ACCOUNT_TOKEN before running bootstrap, or create $token_file manually"
+            return
+        fi
+    fi
 
     if [[ -z "$token" ]]; then
         log_warn "No OP service account token provided; skipping"
