@@ -2,7 +2,25 @@
 ## Common
 ####################################################################################################
 
+# Exit early for non-interactive shells to keep scripts fast and deterministic.
+case "$-" in
+	*i*) ;;
+	*) return ;;
+esac
 
+ZSH_THEME="powerlevel10k/powerlevel10k"
+
+# Powerlevel10k instant prompt should stay near the top for best startup speed.
+if [[ -r "${XDG_CACHE_HOME:-$HOME/.cache}/p10k-instant-prompt-${(%):-%n}.zsh" ]]; then
+	source "${XDG_CACHE_HOME:-$HOME/.cache}/p10k-instant-prompt-${(%):-%n}.zsh"
+fi
+
+if command -v kube_ps1 >/dev/null 2>&1; then
+	PROMPT='$(kube_ps1)'$PROMPT
+fi
+
+# Source full p10k config if present.
+[[ -f ~/.p10k.zsh ]] && source ~/.p10k.zsh
 
 
 ####################################################################################################
@@ -36,3 +54,4 @@
 ####################################################################################################
 ## Work Specific
 ####################################################################################################
+
