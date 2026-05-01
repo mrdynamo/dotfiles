@@ -37,7 +37,7 @@ fi
 
 ## [6] OS-specific aliases
 # WSL aliases: only render on WSL2 via chezmoi template condition.
-{{- if (and (eq .chezmoi.os "linux") (eq .chezmoi.kernel.osRelease "*wsl2*")) }}
+{{- if and (eq .chezmoi.os "linux") (contains "microsoft" (lower .chezmoi.kernel.osrelease)) }}
   alias ssh='ssh.exe'
   alias ssh-add='ssh-add.exe'
   alias op='op.exe'
