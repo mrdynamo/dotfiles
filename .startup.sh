@@ -189,9 +189,36 @@ install_oh_my_zsh_if_needed() {
     log_ok "Oh My Zsh installed"
 }
 
+ensure_shell_is_listed() {
+    local shell_path="$1"
+
+    if grep -Fqx "$shell_path" /etc/shells 2>/dev/null; then
+        return 0
+    fi
+
+    log_info "Adding $shell_path to /etc/shells"
+
+    if [[ -w /etc/shells ]]; then
+        printf "%s\n" "$shell_path" >>/etc/shells
+    else
+        ensure_sudo
+        printf "%s\n" "$shell_path" | sudo tee -a /etc/shells >/dev/null
+    fi
+
+    if grep -Fqx "$shell_path" /etc/shells 2>/dev/null; then
+        log_ok "$shell_path added to /etc/shells"
+        return 0
+    fi
+
+    log_warn "Could not verify $shell_path in /etc/shells"
+    return 1
+}
+
 set_default_shell_to_zsh_if_possible() {
     local zsh_bin
+    local target_user
     zsh_bin="$(command -v zsh || true)"
+    target_user="${SUDO_USER:-$USER}"
 
     if [[ -z "$zsh_bin" ]]; then
         log_warn "zsh not found on PATH; skipping default shell change"
@@ -203,13 +230,17 @@ set_default_shell_to_zsh_if_possible() {
         return
     fi
 
-    if ! grep -Fqx "$zsh_bin" /etc/shells 2>/dev/null; then
-        log_warn "$zsh_bin is not listed in /etc/shells; skipping chsh"
+    if ! ensure_shell_is_listed "$zsh_bin"; then
+        log_warn "Cannot set default shell because $zsh_bin is not registered in /etc/shells"
         return
     fi
 
-    log_info "Setting default shell to $zsh_bin"
-    chsh -s "$zsh_bin" || log_warn "Could not change default shell automatically"
+    log_info "Setting default shell for $target_user to $zsh_bin"
+    if [[ "$(id -un)" == "$target_user" ]]; then
+        chsh -s "$zsh_bin" || log_warn "Could not change default shell automatically"
+    else
+        chsh -s "$zsh_bin" "$target_user" || log_warn "Could not change default shell automatically"
+    fi
 }
 
 initialize_dotfiles() {
