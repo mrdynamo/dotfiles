@@ -1,0 +1,24 @@
+[user]
+  name = mrdynamo
+  email = mrdynamo@dynamiclab.org
+  signingkey = ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAINYeXfOCnOz6FHmaKdJGtHyvhT+FANW2FHRPYZurzZZa
+
+[gpg]
+  format = ssh
+
+{{- if .isMacOS }}
+[gpg "ssh"]
+  program = /Applications/1Password.app/Contents/MacOS/op-ssh-sign
+{{- else if .isWSL }}
+{{- $windowsUsername := (output "powershell.exe" "$env:UserName" | trim) }}
+[gpg "ssh"]
+  program = /mnt/c/Users/{{ $windowsUsername }}/AppData/Local/Microsoft/WindowsApps/op-ssh-sign-wsl.exe
+{{- end }}
+
+{{- if .isWSL }}
+[core]
+  sshCommand = ssh.exe
+{{- end }}
+
+[commit]
+  gpgsign = true

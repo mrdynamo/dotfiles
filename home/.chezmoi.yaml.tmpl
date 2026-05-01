@@ -1,0 +1,16 @@
+{{- $machineClass := promptChoiceOnce . "machineClass" "Machine class" (list "personal" "work") -}}
+{{- $isLinux := eq .chezmoi.os "linux" -}}
+{{- $isMacOS := eq .chezmoi.os "darwin" -}}
+{{- $isWSL := and $isLinux (contains "microsoft" (lower .chezmoi.kernel.osrelease)) -}}
+{{- $platform := "linux" -}}
+{{- if $isMacOS }}{{- $platform = "macos" -}}{{- end -}}
+{{- if $isWSL }}{{- $platform = "wsl2" -}}{{- end -}}
+data:
+  machineClass: {{ $machineClass }}
+  isPersonal: {{ eq $machineClass "personal" }}
+  isWork: {{ eq $machineClass "work" }}
+  isLinux: {{ $isLinux }}
+  isMacOS: {{ $isMacOS }}
+  isWSL: {{ $isWSL }}
+  platform: {{ $platform }}
+  profile: {{ $machineClass }}-{{ $platform }}
