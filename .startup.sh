@@ -132,32 +132,24 @@ initialize_brew_env() {
 }
 
 install_brew_packages() {
-    log_info "Installing core tooling with Homebrew"
+    log_info "Installing bootstrap tooling with Homebrew"
 
+    # Keep this list to the absolute minimum required before mise can take over.
+    # All other tooling is managed via ~/.config/mise/config.toml so that
+    # Renovate can handle version updates in the repository.
     local packages=(
-        age
-        atuin
-        bat
-        chezmoi
-        eza
-        fd
-        fzf
-        gh
-        git
-        gnupg
-        jq
-        mise
-        ripgrep
-        sops
-        starship
-        yq
-        zoxide
-        zsh
+        age      # chezmoi secret decryption (needed before chezmoi apply)
+        chezmoi  # dotfiles manager
+        git      # required by chezmoi init
+        gnupg    # GPG key operations / chezmoi decryption
+        mise     # tool version manager (installs everything else)
+        sops     # chezmoi secret decryption (needed before chezmoi apply)
+        zsh      # target shell
     )
 
     brew update
     brew install "${packages[@]}"
-    log_ok "Core brew packages installed"
+    log_ok "Bootstrap brew packages installed"
 }
 
 ensure_shell_is_listed() {
@@ -241,15 +233,35 @@ set_default_shell_to_zsh_if_possible() {
 initialize_dotfiles() {
     log_info "Initializing dotfiles with chezmoi"
 
+    local -a chezmoi_args=()
+    # When bootstrap is piped (curl | bash), stdin is not a tty and chezmoi
+    # prompts cannot read user input reliably.
+    if [[ ! -t 0 || ! -t 1 ]]; then
+        chezmoi_args+=(--no-tty --force)
+    fi
+
     if [[ -d "$HOME/.local/share/chezmoi/.git" ]]; then
-        chezmoi update
+        chezmoi "${chezmoi_args[@]}" update
     else
-        chezmoi init --apply "$DOTFILES_REPO"
+        chezmoi "${chezmoi_args[@]}" init --apply "$DOTFILES_REPO"
     fi
 
     # Always apply again so new templates/scripts are enforced.
-    chezmoi apply
+    chezmoi "${chezmoi_args[@]}" apply
     log_ok "Chezmoi configuration applied"
+}
+
+install_mise_tools() {
+    log_info "Installing mise-managed tools from global config"
+
+    local mise_bin
+    mise_bin="$(command -v mise)" || die "mise not found on PATH after brew install"
+
+    # Trust the global config so mise does not prompt in non-interactive mode.
+    "$mise_bin" trust --all >/dev/null 2>&1 || true
+
+    "$mise_bin" install --yes
+    log_ok "mise tools installed"
 }
 
 print_post_install_notes() {
@@ -280,6 +292,7 @@ main() {
     install_brew_packages
     set_default_shell_to_zsh_if_possible
     initialize_dotfiles
+    install_mise_tools
     print_post_install_notes
 }
 

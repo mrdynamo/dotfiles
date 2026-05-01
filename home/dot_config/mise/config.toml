@@ -7,6 +7,15 @@ compile = false
 
 [tools]
 atuin = "18.16.0"
+bat = "0.25.0"
 chezmoi = "2.70.2"
+eza = "0.21.3"
+fd = "10.2.0"
+fzf = "0.57.0"
 gh = "2.92.0"
+jq = "1.7.1"
 op = "2.34.0"
+ripgrep = "14.1.1"
+starship = "1.22.1"
+yq = "4.44.6"
+zoxide = "0.9.6"
