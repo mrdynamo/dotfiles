@@ -200,12 +200,17 @@ ensure_shell_is_listed() {
 
 set_default_shell_to_zsh_if_possible() {
     local zsh_bin
-    local target_user
     zsh_bin="$(command -v zsh || true)"
-    target_user="${SUDO_USER:-$USER}"
 
     if [[ -z "$zsh_bin" ]]; then
         log_warn "zsh not found on PATH; skipping default shell change"
+        return
+    fi
+
+    # chsh should target only the active user session. If this script is run
+    # via sudo, skip shell change to avoid mutating another account's shell.
+    if [[ -n "${SUDO_USER:-}" && "${SUDO_USER}" != "$(id -un)" ]]; then
+        log_warn "Script is running under sudo; skipping chsh. Re-run without sudo to set your own default shell."
         return
     fi
 
@@ -219,12 +224,8 @@ set_default_shell_to_zsh_if_possible() {
         return
     fi
 
-    log_info "Setting default shell for $target_user to $zsh_bin"
-    if [[ "$(id -un)" == "$target_user" ]]; then
-        chsh -s "$zsh_bin" || log_warn "Could not change default shell automatically"
-    else
-        chsh -s "$zsh_bin" "$target_user" || log_warn "Could not change default shell automatically"
-    fi
+    log_info "Setting default shell to $zsh_bin for current user"
+    chsh -s "$zsh_bin" || log_warn "Could not change default shell automatically"
 }
 
 initialize_dotfiles() {
