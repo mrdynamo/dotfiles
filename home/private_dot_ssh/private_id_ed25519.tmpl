@@ -1,0 +1,3 @@
+{{- if and .isPersonal .isLinux (not .isWSL) -}}
+{{ onepasswordRead "op://Chezmoi/zi2cozec7lcpi7vtjntwltrzba/private key" }}
+{{- end -}}

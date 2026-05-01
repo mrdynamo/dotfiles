@@ -9,3 +9,10 @@
 # Local 1Password service-account token file (host secret, never managed).
 .config/op/service-account-token.env
 .config/op/config
+
+# SSH keys are provisioned via 1Password templates only on personal native Linux.
+# On work Linux, macOS, and WSL the 1Password desktop/agent flow is used instead.
+{{- if not (and .isPersonal .isLinux (not .isWSL)) }}
+.ssh/id_ed25519
+.ssh/id_ed25519.pub
+{{- end }}
