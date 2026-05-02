@@ -25,8 +25,15 @@ data:
 ####################################################################################################
 ## 1Password CLI Configuration
 ####################################################################################################
+{{- $opAccount := "" -}}
+{{- if $isWSL }}
+{{- $opAccount = trim (promptStringOnce . "onepasswordAccount" "1Password account shorthand for WSL desktop integration (used for op --account, optional)") -}}
+{{- end -}}
 onepassword:
   command: {{ if $isWSL }}op.exe{{ else }}op{{ end }}
+  {{- if and $isWSL (ne $opAccount "") }}
+  args: --account {{ $opAccount }}
+  {{- end}}
   {{- if and $isLinux (not $isWSL) }}
   mode: service-account
   {{- end }}
