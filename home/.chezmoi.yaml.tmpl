@@ -22,13 +22,26 @@ data:
   platform: {{ $platform }}
   profile: {{ $machineClass }}-{{ $platform }}
 
-{{- if $isLinux }}
+{{- $opAccount := "" -}}
+{{- if or $isWSL $isMacOS -}}
+{{- $opCmd := "op" -}}
+{{- if $isWSL }}{{- $opCmd = "op.exe" -}}{{- end -}}
+{{- $opAccounts := output $opCmd "account" "list" "--format=json" | fromJson -}}
+{{- range $opAccounts -}}
+{{-   if not (contains "+1passbeta" .email) -}}
+{{-     $opAccount = .shorthand -}}
+{{-   end -}}
+{{- end -}}
+{{- end -}}
+{{- if or $isLinux $isMacOS }}
 ####################################################################################################
 ## 1Password CLI Configuration
 ####################################################################################################
 onepassword:
   command: {{ if $isWSL }}op.exe{{ else }}op{{ end }}
-  {{- if not $isWSL }}
+  {{- if and $isLinux (not $isWSL) }}
   mode: service-account
+  {{- else }}
+  account: {{ $opAccount }}
   {{- end }}
 {{- end }}
