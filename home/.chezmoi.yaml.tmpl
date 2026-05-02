@@ -35,5 +35,5 @@ onepassword:
   args: --account {{ $opAccount }}
   {{- end}}
   {{- if and $isLinux (not $isWSL) }}
-  mode: service-account
+  mode:
   {{- end }}
