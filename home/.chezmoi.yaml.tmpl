@@ -28,7 +28,7 @@ data:
 {{- $opAccount := "" -}}
 {{- if $isWSL }}
 {{- $opAccount = trim (promptStringOnce . "onepasswordAccount" "1Password account shorthand for WSL desktop integration (used for op --account, optional)") -}}
-{{- end -}}
+{{- end }}
 onepassword:
   command: {{ if $isWSL }}op.exe{{ else }}op{{ end }}
   {{- if and $isWSL (ne $opAccount "") }}
