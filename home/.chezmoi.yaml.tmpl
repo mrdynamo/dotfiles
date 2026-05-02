@@ -22,11 +22,13 @@ data:
   platform: {{ $platform }}
   profile: {{ $machineClass }}-{{ $platform }}
 
-{{- if and $isLinux (not $isWSL) }}
+{{- if $isLinux }}
 ####################################################################################################
-## personal-linux
+## 1Password CLI Configuration
 ####################################################################################################
 onepassword:
-  command: op
+  command: {{ if $isWSL }}op.exe{{ else }}op{{ end }}
+  {{- if not $isWSL }}
   mode: service-account
+  {{- end }}
 {{- end }}
