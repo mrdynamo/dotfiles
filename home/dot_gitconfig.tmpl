@@ -2,7 +2,7 @@
   name = mrdynamo
   email = mrdynamo@dynamiclab.org
 {{- if and .isPersonal .isLinux (not .isWSL) }}
-  signingkey = {{ onepasswordRead "op://Chezmoi/zi2cozec7lcpi7vtjntwltrzba/public key" | trim }}
+  signingkey = ~/.ssh/id_ed25519
 {{- else }}
   signingkey = {{ onepasswordRead "op://SSH Keys/3l2u73dx2sju2cuxiajsf7iivu/public key" | trim }}
 {{- end }}
