@@ -7,7 +7,7 @@ compile = false
 
 [tools]
 atuin = "18.16.0"
-bat = "0.25.0"
+bat = "0.26.1"
 chezmoi = "2.70.2"
 eza = "0.21.3"
 fd = "10.2.0"
