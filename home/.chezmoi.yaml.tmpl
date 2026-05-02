@@ -22,11 +22,11 @@ data:
   platform: {{ $platform }}
   profile: {{ $machineClass }}-{{ $platform }}
 
-{{ if $isLinux }}
+{{- if and $isLinux (not $isWSL) }}
 ####################################################################################################
 ## personal-linux
 ####################################################################################################
 onepassword:
   command: op
   mode: service-account
-{{ end }}
+{{- end }}
