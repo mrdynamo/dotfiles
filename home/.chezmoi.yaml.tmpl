@@ -22,10 +22,12 @@ data:
   platform: {{ $platform }}
   profile: {{ $machineClass }}-{{ $platform }}
 
+
+{{- if and $isPersonal $isLinux }}
 ####################################################################################################
 ## personal-linux
 ####################################################################################################
-{{- $useOnePasswordServiceAccount := and $isPersonal $isLinux (not $isWSL) }}
 onepassword:
   command: op
-  mode: {{ if $useOnePasswordServiceAccount }}service-account{{ else }}account{{ end }}
+  mode: service
+{{- end }}
