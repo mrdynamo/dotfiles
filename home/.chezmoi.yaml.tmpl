@@ -1,6 +1,7 @@
 ####################################################################################################
 ## Machine Type Detection and Configuration
 ####################################################################################################
+
 {{- $machineClassInput := promptStringOnce . "machineClass" "Machine class ([p] personal / [w] work, default: personal)" -}}
 {{- $machineClassChoice := lower (trim $machineClassInput) -}}
 {{- $machineClass := "personal" -}}
@@ -26,6 +27,7 @@ data:
 ####################################################################################################
 ## personal-Linux
 ####################################################################################################
+
 {{- $useOnePasswordServiceAccount := and $isPersonal $isLinux (not $isWSL) -}}
 onepassword:
   command: op
