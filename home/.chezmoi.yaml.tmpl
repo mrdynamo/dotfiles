@@ -13,6 +13,7 @@
 {{- if $isWSL }}{{- $platform = "wsl2" -}}{{- end -}}
 {{- $isPersonal := eq $machineClass "personal" }}
 {{- $useOnePasswordServiceAccount := and $isPersonal $isLinux (not $isWSL) }}
+data:
   isPersonal: {{ $isPersonal }}
   isWork: {{ eq $machineClass "work" }}
   isLinux: {{ $isLinux }}
@@ -25,7 +26,6 @@
 ####################################################################################################
 ## personal-Linux
 ####################################################################################################
-{{ $useOnePasswordServiceAccount := and $isPersonal $isLinux (not $isWSL) }}
 onepassword:
   command: op
   mode: {{ if $useOnePasswordServiceAccount }}service-account{{ else }}account{{ end }}
