@@ -22,12 +22,11 @@ data:
   platform: {{ $platform }}
   profile: {{ $machineClass }}-{{ $platform }}
 
-
-{{- if and $isPersonal $isLinux }}
+{{ if $isLinux }}
 ####################################################################################################
 ## personal-linux
 ####################################################################################################
 onepassword:
   command: op
-  mode: service
-{{- end }}
+  mode: service-account
+{{ end }}
