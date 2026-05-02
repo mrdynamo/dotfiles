@@ -1,7 +1,11 @@
 [user]
   name = mrdynamo
   email = mrdynamo@dynamiclab.org
-  signingkey = ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAINYeXfOCnOz6FHmaKdJGtHyvhT+FANW2FHRPYZurzZZa
+{{- if and .isPersonal .isLinux (not .isWSL) }}
+  signingkey = {{ onepasswordRead "op://Chezmoi/zi2cozec7lcpi7vtjntwltrzba/public key" | trim }}
+{{- else }}
+  signingkey = {{ onepasswordRead "op://SSH Keys/3l2u73dx2sju2cuxiajsf7iivu/public key" | trim }}
+{{- end }}
 
 [gpg]
   format = ssh
