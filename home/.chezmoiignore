@@ -16,3 +16,13 @@
 .ssh/id_ed25519
 .ssh/id_ed25519.pub
 {{- end }}
+
+# 1Password SSH agent config: macOS path only on personal macOS, Windows path only on Windows, nohing on WSL/Linux.
+{{- if and .isMacOS }}
+AppData/Local/1Password/config/ssh/agent.toml
+{{- else if .isWindows }}
+.config/1Password/ssh/agent.toml
+{{- else }}
+.config/1Password/ssh/agent.toml
+AppData/Local/1Password/config/ssh/agent.toml
+{{- end }}

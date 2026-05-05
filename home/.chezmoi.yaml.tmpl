@@ -7,9 +7,11 @@
 {{- if or (eq $machineClassChoice "w") (eq $machineClassChoice "work") }}{{- $machineClass = "work" -}}{{- end -}}
 {{- $isLinux := eq .chezmoi.os "linux" -}}
 {{- $isMacOS := eq .chezmoi.os "darwin" -}}
+{{- $isWindows := eq .chezmoi.os "windows" -}}
 {{- $isWSL := and $isLinux (contains "microsoft" (lower .chezmoi.kernel.osrelease)) -}}
 {{- $platform := "linux" -}}
 {{- if $isMacOS }}{{- $platform = "macos" -}}{{- end -}}
+{{- if $isWindows }}{{- $platform = "windows" -}}{{- end -}}
 {{- if $isWSL }}{{- $platform = "wsl2" -}}{{- end -}}
 {{- $isPersonal := eq $machineClass "personal" }}
 data:
@@ -17,6 +19,7 @@ data:
   isWork: {{ eq $machineClass "work" }}
   isLinux: {{ $isLinux }}
   isMacOS: {{ $isMacOS }}
+  isWindows: {{ $isWindows }}
   isWSL: {{ $isWSL }}
   machineClass: {{ $machineClass }}
   platform: {{ $platform }}
