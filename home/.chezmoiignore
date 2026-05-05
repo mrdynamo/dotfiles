@@ -1,3 +1,6 @@
+# GitHub related items
+README.md
+
 # Oh My Zsh runtime cache and compiled bytecode are mutable and should not be
 # managed by chezmoi. .zwc files are compiled by zsh at runtime and will always
 # differ from what chezmoi originally wrote
