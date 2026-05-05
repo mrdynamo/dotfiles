@@ -1,4 +1,4 @@
-{{- if or (and .isPersonal (ne .platform "linux")) (and .isWork .isWSL) -}}
+{{- if and .isPersonal .isMacOS -}}
 
 # This is the 1Password SSH agent config file, which allows you to customize the
 # behavior of the SSH agent running on this machine.
