@@ -4,7 +4,7 @@
 {{- if and .isPersonal .isLinux (not .isWSL) }}
   signingkey = ~/.ssh/id_ed25519
 {{- else }}
-  signingkey = {{ onepasswordRead "op://SSH Keys/3l2u73dx2sju2cuxiajsf7iivu/public key" | trim }}
+  signingkey = {{ onepasswordRead "op://Chezmoi/jvz7ife75zhjagzlfbqkpjfniu/public key" | trim }}
 {{- end }}
 
 [gpg]
