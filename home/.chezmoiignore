@@ -25,6 +25,6 @@ AppData/Local/1Password/config/ssh/agent.toml
 {{- else if .isWindows }}
 .config/1Password/ssh/agent.toml
 {{- else }}
-.config/1Password/ssh/agent.toml
+.config/1Password/**
 AppData/**
 {{- end }}
