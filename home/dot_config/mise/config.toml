@@ -9,6 +9,7 @@ compile = false
 atuin = "18.16.0"
 bat = "0.26.1"
 chezmoi = "2.70.3"
+copilot-cli = "1.0.44"
 eza = "0.23.4"
 fd = "10.4.2"
 fzf = "0.72.0"
