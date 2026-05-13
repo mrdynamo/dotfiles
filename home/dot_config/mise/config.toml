@@ -6,7 +6,7 @@ experimental = true
 compile = false
 
 [tools]
-atuin = "18.16.0"
+atuin = "18.16.1"
 bat = "0.26.1"
 chezmoi = "2.70.3"
 copilot-cli = "1.0.45"
