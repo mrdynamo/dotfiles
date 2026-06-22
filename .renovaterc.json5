@@ -26,7 +26,7 @@
   ],
   mise: {
     managerFilePatterns: [
-      "/home/dot_config/mise/config\\.toml$/"
+      "/home/dot_config/mise/private_config\\.toml$/"
     ],
   },
 }
