@@ -1,6 +1,6 @@
 {
   "mcpServers": {
-    "litellm": {
+    "LiteLLM": {
       "type": "http",
       "url": "${ANTHROPIC_BASE_URL}/mcp/",
       "headers": {
