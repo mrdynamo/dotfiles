@@ -1,0 +1,82 @@
+{{/*
+   Merge the user-scope MCP servers block into ~/.claude.json without
+   disturbing any other keys in that file.
+
+   ~/.claude.json is mutable runtime state owned by Claude Code, so we cannot
+   manage it as a normal chezmoi target. Instead, this run_onchange_ script
+   splices only the top-level `mcpServers` key, leaving everything else alone.
+
+   The desired MCP block is embedded below. Because chezmoi hashes the
+   rendered script to decide whether to re-run, any edit to the block
+   (or the merge logic) re-triggers the merge on the next `chezmoi apply`.
+
+   Secrets are NOT inlined here. The litellm server uses ${ANTHROPIC_BASE_URL}
+   and ${ANTHROPIC_AUTH_TOKEN}, which Claude Code expands at runtime from the
+   `env` block in ~/.claude/settings.json (sourced from 1Password by the
+   private_settings.json.tmpl template). This file therefore stays free of
+   credentials and is safe to commit, though it lives under a private_ name
+   for defense in depth.
+*/ -}}
+#!/usr/bin/env bash
+set -euo pipefail
+
+CLAUDE_JSON="${HOME}/.claude.json"
+
+# Resolve jq: prefer system jq, fall back to the mise-installed shim.
+if command -v jq >/dev/null 2>&1; then
+  JQ="$(command -v jq)"
+elif [ -x "${HOME}/.local/share/mise/shims/jq" ]; then
+  JQ="${HOME}/.local/share/mise/shims/jq"
+else
+  echo "merge-claude-mcp: jq not found on PATH; cannot merge MCP config" >&2
+  exit 1
+fi
+
+# Desired MCP block. Edit here to add/remove user-scope MCP servers.
+read -r -d '' MCP_BLOCK <<'JSON' || true
+{
+  "mcpServers": {
+    "litellm": {
+      "type": "http",
+      "url": "${ANTHROPIC_BASE_URL}/mcp/",
+      "headers": {
+        "x-litellm-api-key": "Bearer ${ANTHROPIC_AUTH_TOKEN}"
+      }
+    }
+  }
+}
+JSON
+
+# Create ~/.claude.json with a minimal skeleton if missing.
+if [ ! -f "${CLAUDE_JSON}" ]; then
+  echo "merge-claude-mcp: ${CLAUDE_JSON} not found, creating with MCP block only"
+  umask 077
+  printf '%s\n' "${MCP_BLOCK}" >"${CLAUDE_JSON}"
+  exit 0
+fi
+
+# Validate the existing file is JSON before touching it.
+if ! "${JQ}" empty "${CLAUDE_JSON}" >/dev/null 2>&1; then
+  echo "merge-claude-mcp: ${CLAUDE_JSON} is not valid JSON; refusing to modify" >&2
+  exit 1
+fi
+
+# Compute the merged result. If unchanged, exit without rewriting the file
+# (preserves mtime, avoids needless backups).
+TMP="$(mktemp "${CLAUDE_JSON}.merge.XXXXXX")"
+trap 'rm -f "${TMP}"' EXIT
+
+"${JQ}" --argjson mcp "$(printf '%s' "${MCP_BLOCK}" | "${JQ}" '.mcpServers')" \
+  '. + {mcpServers: $mcp}' "${CLAUDE_JSON}" >"${TMP}"
+
+if cmp -s "${CLAUDE_JSON}" "${TMP}"; then
+  echo "merge-claude-mcp: ${CLAUDE_JSON} already up to date"
+  exit 0
+fi
+
+# Back up once per change, then atomically replace.
+cp -p "${CLAUDE_JSON}" "${CLAUDE_JSON}.bak.$(date +%Y%m%d-%H%M%S)"
+chmod 600 "${TMP}"
+mv "${TMP}" "${CLAUDE_JSON}"
+trap - EXIT
+echo "merge-claude-mcp: merged MCP block into ${CLAUDE_JSON}"
