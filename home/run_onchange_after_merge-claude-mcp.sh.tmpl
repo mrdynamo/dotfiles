@@ -6,16 +6,17 @@
    manage it as a normal chezmoi target. Instead, this run_onchange_ script
    splices only the top-level `mcpServers` key, leaving everything else alone.
 
-   The desired MCP block is embedded below. Because chezmoi hashes the
-   rendered script to decide whether to re-run, any edit to the block
-   (or the merge logic) re-triggers the merge on the next `chezmoi apply`.
+   The desired MCP block lives in .chezmoitemplates/claude-mcp-servers.json
+   and is embedded here at template-render time. Because chezmoi hashes the
+   rendered script to decide whether to re-run, edits to that JSON file
+   (or to the merge logic below) re-trigger the merge on the next
+   `chezmoi apply`.
 
-   Secrets are NOT inlined here. The litellm server uses ${ANTHROPIC_BASE_URL}
+   Secrets are NOT inlined. The litellm server uses ${ANTHROPIC_BASE_URL}
    and ${ANTHROPIC_AUTH_TOKEN}, which Claude Code expands at runtime from the
    `env` block in ~/.claude/settings.json (sourced from 1Password by the
-   private_settings.json.tmpl template). This file therefore stays free of
-   credentials and is safe to commit, though it lives under a private_ name
-   for defense in depth.
+   private_settings.json.tmpl template). The MCP JSON file therefore stays
+   free of credentials and is safe to commit.
 */ -}}
 #!/usr/bin/env bash
 set -euo pipefail
@@ -32,19 +33,11 @@ else
   exit 1
 fi
 
-# Desired MCP block. Edit here to add/remove user-scope MCP servers.
+# Desired MCP block. Edit .chezmoitemplates/claude-mcp-servers.json to
+# add/remove user-scope MCP servers; this heredoc is filled at template
+# render time by chezmoi.
 read -r -d '' MCP_BLOCK <<'JSON' || true
-{
-  "mcpServers": {
-    "litellm": {
-      "type": "http",
-      "url": "${ANTHROPIC_BASE_URL}/mcp/",
-      "headers": {
-        "x-litellm-api-key": "Bearer ${ANTHROPIC_AUTH_TOKEN}"
-      }
-    }
-  }
-}
+{{ includeTemplate "claude-mcp-servers.json" -}}
 JSON
 
 # Create ~/.claude.json with a minimal skeleton if missing.
