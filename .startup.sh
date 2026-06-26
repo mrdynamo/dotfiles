@@ -194,6 +194,7 @@ install_brew_packages() {
         git      # required by chezmoi init
         gnupg    # GPG key operations / chezmoi decryption
         mise     # tool version manager (installs everything else)
+        op       # 1password-cli bootstrap
         sops     # chezmoi secret decryption (needed before chezmoi apply)
         zsh      # target shell
     )
