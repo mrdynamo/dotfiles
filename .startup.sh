@@ -189,14 +189,14 @@ install_brew_packages() {
     # All other tooling is managed via ~/.config/mise/config.toml so that
     # Renovate can handle version updates in the repository.
     local packages=(
-        age      # chezmoi secret decryption (needed before chezmoi apply)
-        chezmoi  # dotfiles manager
-        git      # required by chezmoi init
-        gnupg    # GPG key operations / chezmoi decryption
-        mise     # tool version manager (installs everything else)
-        op       # 1password-cli bootstrap
-        sops     # chezmoi secret decryption (needed before chezmoi apply)
-        zsh      # target shell
+        age              # chezmoi secret decryption (needed before chezmoi apply)
+        chezmoi          # dotfiles manager
+        git              # required by chezmoi init
+        gnupg            # GPG key operations / chezmoi decryption
+        mise             # tool version manager (installs everything else)
+        1password-cli    # 1password-cli bootstrap
+        sops             # chezmoi secret decryption (needed before chezmoi apply)
+        zsh              # target shell
     )
 
     brew update
