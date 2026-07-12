@@ -9,6 +9,11 @@ case "$-" in
   *) return;;
 esac
 
+## [1a] User-local bin — mise binary lives here (installed by run_onchange_after_10-install-mise.sh.tmpl).
+# Must come before the mise activation check in [9], since env.zsh (which also
+# exports this) sources AFTER init.zsh via ~/.zshrc.
+export PATH="$HOME/.local/bin:$PATH"
+
 ## [2] Secret-safe history guards
 # Never persist OP service account token exports in zsh history.
 _dotfiles_zsh_addhistory_guard() {
