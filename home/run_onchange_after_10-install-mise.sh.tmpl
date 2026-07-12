@@ -1,0 +1,32 @@
+#!/usr/bin/env bash
+# chezmoi:execute
+#
+# Install mise at the version pinned in dot_config/mise/version. Renovate bumps
+# that file via the regex customManager in .renovaterc.json5, which changes
+# this template's rendered hash, which causes chezmoi to re-run this script
+# on the next `chezmoi apply`. The MISE_VERSION env var is documented at
+# https://mise.jdx.dev/installing-mise.html as the supported install-time
+# pin mechanism (`MISE_VERSION=vYYYY.M.PATCH`).
+set -euo pipefail
+
+MISE_VERSION="{{ include "dot_config/mise/version" | trim }}"
+INSTALL_PATH="${HOME}/.local/bin/mise"
+
+if [[ -z "${MISE_VERSION}" ]]; then
+    echo "mise version pin is empty; skipping install" >&2
+    exit 0
+fi
+
+current="$(command -v mise >/dev/null 2>&1 && mise version || echo "none")"
+if [[ "${current}" == "${MISE_VERSION}" ]]; then
+    echo "mise ${MISE_VERSION} already installed"
+    exit 0
+fi
+
+echo "Installing mise ${MISE_VERSION} (was: ${current})"
+MISE_VERSION="v${MISE_VERSION}" curl -fsSL https://mise.run | sh
+
+# mise.run installs to ~/.local/bin/mise. Ensure it's on PATH for this shell
+# session so any subsequent `mise install` in the same apply resolves the
+# freshly installed binary.
+export PATH="${HOME}/.local/bin:${PATH}"

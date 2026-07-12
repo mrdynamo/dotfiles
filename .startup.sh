@@ -185,15 +185,18 @@ initialize_brew_env() {
 install_brew_packages() {
     log_info "Installing bootstrap tooling with Homebrew"
 
-    # Keep this list to the absolute minimum required before mise can take over.
+    # Keep this list to the absolute minimum required before chezmoi apply.
     # All other tooling is managed via ~/.config/mise/config.toml so that
-    # Renovate can handle version updates in the repository.
+    # Renovate can handle version updates in the repository. mise itself is
+    # NOT installed here — it is installed by
+    # home/run_onchange_after_10-install-mise.sh.tmpl from the version pinned
+    # in home/dot_config/mise/version (which Renovate bumps via the regex
+    # customManager in .renovaterc.json5).
     local packages=(
         age              # chezmoi secret decryption (needed before chezmoi apply)
         chezmoi          # dotfiles manager
         git              # required by chezmoi init
         gnupg            # GPG key operations / chezmoi decryption
-        mise             # tool version manager (installs everything else)
         1password-cli    # 1password-cli bootstrap
         sops             # chezmoi secret decryption (needed before chezmoi apply)
         zsh              # target shell
@@ -306,8 +309,15 @@ initialize_dotfiles() {
 install_mise_tools() {
     log_info "Installing mise-managed tools from global config"
 
-    local mise_bin
-    mise_bin="$(command -v mise)" || die "mise not found on PATH after brew install"
+    # mise is installed by home/run_onchange_after_10-install-mise.sh.tmpl
+    # (during the chezmoi apply above) to ${HOME}/.local/bin/mise from the
+    # version pinned in home/dot_config/mise/version. Resolve it directly so
+    # we do not depend on the calling shell's PATH.
+    local mise_bin="${HOME}/.local/bin/mise"
+
+    if [[ ! -x "$mise_bin" ]]; then
+        die "mise not found at ${mise_bin} after chezmoi apply — check run_onchange_after_10-install-mise.sh"
+    fi
 
     # Trust the global config so mise does not prompt in non-interactive mode.
     "$mise_bin" trust --all >/dev/null 2>&1 || true
