@@ -18,10 +18,12 @@
   ],
   enabledManagers: [
     "mise",
-    "github-actions"
+    "github-actions",
+    "regex"
   ],
   includePaths: [
     "home/dot_config/mise/private_config.toml",
+    "home/dot_config/mise/version",
     ".github/workflows/**",
   ],
   mise: {
@@ -29,4 +31,19 @@
       "/home/dot_config/mise/private_config\\.toml$/"
     ],
   },
+  customManagers: [
+    {
+      customType: "regex",
+      description: "Track mise self-update version pin",
+      managerFilePatterns: [
+        "/home/dot_config/mise/version$",
+      ],
+      matchStrings: [
+        "^(?<currentValue>\\d{4}\\.\\d{1,2}\\.\\d+)\\s*$",
+      ],
+      datasourceTemplate: "github-releases",
+      depNameTemplate: "jdx/mise",
+      versioningTemplate: "regex:^(?<major>\\d{4})\\.(?<minor>\\d{1,2})\\.(?<patch>\\d+)$",
+    },
+  ],
 }
