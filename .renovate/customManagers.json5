@@ -1,0 +1,18 @@
+{
+	$schema: "https://docs.renovatebot.com/renovate-schema.json",
+	customManagers: [
+		{
+			customType: "regex",
+			description: "Track mise self-update version pin",
+			managerFilePatterns: [
+				"/(^|/)home/dot_config/mise/version$/",
+			],
+			matchStrings: [
+				"^(?<currentValue>\\d{4}\\.\\d{1,2}\\.\\d+)\\s*$",
+			],
+			datasourceTemplate: "github-releases",
+			depNameTemplate: "jdx/mise",
+			versioningTemplate: "regex:^(?<major>\\d{4})\\.(?<minor>\\d{1,2})\\.(?<patch>\\d+)$",
+		},
+	],
+}
