@@ -12,6 +12,7 @@
 			],
 			datasourceTemplate: "github-releases",
 			depNameTemplate: "jdx/mise",
+			extractVersionTemplate: "^v(?<version>\\d{4}\\.\\d{1,2}\\.\\d+)$",
 			versioningTemplate: "regex:^(?<major>\\d{4})\\.(?<minor>\\d{1,2})\\.(?<patch>\\d+)$",
 		},
 	],
