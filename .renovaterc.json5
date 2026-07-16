@@ -20,7 +20,7 @@
   enabledManagers: [
     "mise",
     "github-actions",
-    "regex"
+    "custom.regex"
   ],
   includePaths: [
     "home/dot_config/mise/private_config.toml",
