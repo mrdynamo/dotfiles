@@ -7,7 +7,7 @@ compile = false
 
 [tools]
 1password = "2.34.0"
-atuin = "18.17.1"
+atuin = "18.18.0"
 bat = "0.26.1"
 chezmoi = "2.71.1"
 claude = "2.1.220"
