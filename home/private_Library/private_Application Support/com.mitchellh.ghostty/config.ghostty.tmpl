@@ -1,3 +1,7 @@
 {{- if and .isPersonal .isMacOS }}
 theme = Dark Pastel
+
+# Atuin: free ctrl+r from Ghostty's built-in "reset to default font size" binding
+# so the keystroke reaches the shell where Atuin can intercept it.
+keybind = ctrl+r=unbind
 {{- end }}
