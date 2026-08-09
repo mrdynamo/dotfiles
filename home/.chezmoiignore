@@ -31,10 +31,8 @@ AppData/**
 
 # macOS-only Library subtree (e.g. Ghostty under
 # Application Support/com.mitchellh.ghostty). Personal macOS devices only.
-# Without this ignore, chezmoi creates the parent directories on Linux even
-# when the templates render to empty content (mkdir runs before template
-# evaluation). The pattern targets the SOURCE path — `private_Library`
-# (with private_ prefix because the source uses chmod 600 semantics).
+# Pattern uses the TARGET path form (matches what `chezmoi managed` shows),
+# NOT the source path with private_ prefix — see the 1Password rule above.
 {{- if not (and .isPersonal .isMacOS) }}
-private_Library
+Library/**
 {{- end }}
