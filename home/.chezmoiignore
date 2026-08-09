@@ -29,11 +29,12 @@ AppData/Local/1Password/config/ssh/agent.toml
 AppData/**
 {{- end }}
 
-# Ghostty config: personal macOS only. Without this ignore, chezmoi creates
-# the parent directory on Linux even though the template renders to empty
-# content (mkdir runs before template evaluation).
-# .chezmoiignore patterns match the SOURCE path (with private_ prefix and
-# underscore→space), so the pattern targets the directory itself in source.
+# macOS-only Library subtree (e.g. Ghostty under
+# Application Support/com.mitchellh.ghostty). Personal macOS devices only.
+# Without this ignore, chezmoi creates the parent directories on Linux even
+# when the templates render to empty content (mkdir runs before template
+# evaluation). The pattern targets the SOURCE path — `private_Library`
+# (with private_ prefix because the source uses chmod 600 semantics).
 {{- if not (and .isPersonal .isMacOS) }}
-private_Library/private_Application Support/com.mitchellh.ghostty
+private_Library
 {{- end }}
