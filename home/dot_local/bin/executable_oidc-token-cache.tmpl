@@ -1,0 +1,106 @@
+#!/usr/bin/env bash
+# chezmoi:target
+#
+# Print where the kubectl-oidc_login token cache may be written: `keyring` when
+# the OS keyring is available and unlocked, `none` otherwise. Nothing else is
+# printed, and nothing is written.
+#
+# The plaintext `disk` cache is never an option: that file holds a usable
+# cluster-admin refresh token.
+#
+# This is the only interface the home-ops repo has to the keyring. The
+# keyring itself is managed by the dotfiles, in
+# run_always_after_30-keyring.sh.tmpl.
+set -uo pipefail
+
+SECRETS_SERVICE="org.freedesktop.secrets"
+LOGIN_COLLECTION="/org/freedesktop/secrets/collection/login"
+
+# The owner of the Secret Service name, or empty when nobody owns it.
+#
+# This must be GetNameOwner and not a property read: reading a property of the
+# collection activates the gnome-keyring daemon that ships with the package,
+# and that daemon starts a LOCKED collection and owns the name for good.
+secrets_owner() {
+    dbus-send --session --print-reply --dest=org.freedesktop.DBus /org/freedesktop/DBus \
+        org.freedesktop.DBus.GetNameOwner string:"${SECRETS_SERVICE}" 2>/dev/null |
+        sed -n 's/.*string "\(:[0-9][0-9.]*\)".*/\1/p' | head -1
+}
+
+# true / false / empty (unknown). Only call this when a daemon owns the name.
+collection_locked() {
+    dbus-send --session --print-reply --dest="${SECRETS_SERVICE}" "${LOGIN_COLLECTION}" \
+        org.freedesktop.DBus.Properties.Get \
+        string:org.freedesktop.Secret.Collection string:Locked 2>/dev/null |
+        sed -n 's/.*boolean \(true\|false\).*/\1/p' | head -1
+}
+
+{{ if .isMacOS }}
+# The login keychain is unlocked by the login session. Check it with a
+# throwaway item: a locked keychain fails with "User interaction is not
+# allowed" instead of prompting.
+macos_keychain_ready() {
+    local service="chezmoi-keyring-probe"
+    command -v security >/dev/null 2>&1 || return 1
+    security delete-generic-password -s "${service}" >/dev/null 2>&1
+    security add-generic-password -U -s "${service}" -a "probe" -w "probe" >/dev/null 2>&1 || return 1
+    security delete-generic-password -s "${service}" >/dev/null 2>&1
+    return 0
+}
+
+if macos_keychain_ready; then
+    printf 'keyring\n'
+else
+    printf 'none\n'
+fi
+{{ end }}
+
+{{ if .isLinux }}
+# The session bus of the systemd user session is not always in the environment,
+# and the keyring client cannot find it on its own (no DBUS_SESSION_BUS_ADDRESS,
+# no X11). Point it at the socket systemd provides, or at the private bus the
+# keyring script started.
+resolve_bus() {
+    local uid addr_file addr
+    uid="$(id -u)"
+
+    if [[ -n "${DBUS_SESSION_BUS_ADDRESS:-}" ]]; then
+        return 0
+    fi
+
+    addr_file="${XDG_STATE_HOME:-${HOME}/.local/state}/chezmoi/dbus-session-address"
+    if [[ -r "${addr_file}" ]]; then
+        addr="$(<"${addr_file}")"
+        case "${addr}" in
+            unix:path=*)
+                if [[ -S "${addr#unix:path=}" ]]; then
+                    export DBUS_SESSION_BUS_ADDRESS="${addr}"
+                    return 0
+                fi
+                ;;
+        esac
+    fi
+
+    if [[ -S "/run/user/${uid}/bus" ]]; then
+        export DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/${uid}/bus"
+        return 0
+    fi
+
+    return 1
+}
+
+if command -v dbus-send >/dev/null 2>&1 && resolve_bus && [[ -n "$(secrets_owner)" ]]; then
+    if [[ "$(collection_locked)" == "false" ]]; then
+        printf 'keyring\n'
+    else
+        printf 'none\n'
+    fi
+else
+    printf 'none\n'
+fi
+{{ end }}
+
+{{ if .isWindows }}
+# Windows has no Secret Service; kubelogin uses the wincred store there.
+printf 'none\n'
+{{ end }}

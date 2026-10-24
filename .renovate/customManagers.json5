@@ -15,5 +15,31 @@
 			extractVersionTemplate: "^v(?<version>\\d{4}\\.\\d{1,2}\\.\\d+)$",
 			versioningTemplate: "regex:^(?<major>\\d{4})\\.(?<minor>\\d{1,2})\\.(?<patch>\\d+)$",
 		},
+		{
+			customType: "regex",
+			description: "Track pinned Debian apt package versions",
+			managerFilePatterns: [
+				"/(^|/)home/dot_config/keyring/packages\\.debian\\.conf$/",
+			],
+			matchStrings: [
+				"^(?<depName>[a-z0-9][a-z0-9.+-]*)=(?<currentValue>[0-9][^\\s]*)$",
+			],
+			datasourceTemplate: "deb",
+			registryUrlTemplate: "https://deb.debian.org/debian?suite=stable&components=main&binaryArch=amd64",
+			versioningTemplate: "deb",
+		},
+		{
+			customType: "regex",
+			description: "Track pinned Ubuntu apt package versions",
+			managerFilePatterns: [
+				"/(^|/)home/dot_config/keyring/packages\\.ubuntu\\.conf$/",
+			],
+			matchStrings: [
+				"^(?<depName>[a-z0-9][a-z0-9.+-]*)=(?<currentValue>[0-9][^\\s]*)$",
+			],
+			datasourceTemplate: "deb",
+			registryUrlTemplate: "https://archive.ubuntu.com/ubuntu?suite=noble&components=main&binaryArch=amd64",
+			versioningTemplate: "deb",
+		},
 	],
 }

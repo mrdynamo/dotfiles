@@ -1,0 +1,428 @@
+#!/usr/bin/env bash
+# chezmoi:execute
+#
+# Keyring lifecycle for the OIDC token cache.
+#
+# The kubectl-oidc_login token cache is either the OS keyring or nothing at
+# all: the plaintext `disk` cache is never used, because that file holds a
+# usable cluster-admin refresh token. This script makes the keyring available
+# and unlocked so `oidc-token-cache` can report `keyring`, and it runs on every
+# `chezmoi update` because the gnome-keyring daemon does not survive a reboot.
+#
+# The 1Password CLI is never chosen here. The dotfiles decide which one runs
+# (`op.exe` on WSL, the service-account CLI on native Linux, the desktop
+# integration on macOS), so the passphrase is read in an interactive login zsh
+# where those aliases and the service-account token apply.
+#
+# `set -e` is deliberately off: nothing in here may fail a `chezmoi apply`.
+set -uo pipefail
+
+log() { printf '[keyring] %s\n' "$*"; }
+warn() { printf '[keyring] WARNING: %s\n' "$*" >&2; }
+
+KEYRING_ITEM="op://chezmoi/gnome-keyring/PASSPHRASE"
+SECRETS_SERVICE="org.freedesktop.secrets"
+LOGIN_COLLECTION="/org/freedesktop/secrets/collection/login"
+
+####################################################################################################
+## 1Password
+####################################################################################################
+
+# Stream the login-keyring passphrase into the daemon's standard input.
+#
+# The value never reaches a file, a process argument list or a shell variable:
+# 1Password CLI -> pipe -> gnome-keyring-daemon. The reference to the item is
+# in the command line of the read, which is not a secret; the value is not.
+#
+# `zsh -lic` is what gives the read the right CLI: the dotfiles alias `op` to
+# `op.exe` on WSL and source the service-account token on native Linux. The
+# Windows build of the CLI writes CRLF, so \r is stripped.
+#
+# The exit status of the read is returned, so the caller can tell "the item
+# could not be read" from "the passphrase did not open the keyring". An empty
+# passphrase is harmless: the daemon then starts without a collection and
+# creates no keyring file.
+stream_unlock() {
+    local control_dir="$1" err_file="$2"
+    zsh -lic "op read \"${KEYRING_ITEM}\"" 2>>"${err_file}" |
+        tr -d '\r' |
+        gnome-keyring-daemon --unlock --components=secrets \
+            --control-directory="${control_dir}" >/dev/null 2>>"${err_file}"
+    return "${PIPESTATUS[0]}"
+}
+
+# The login shell prints powerlevel10k/gitstatus noise on stderr; keep it out
+# of the messages this script prints.
+filter_noise() {
+    grep -vE "gitstatus|can't change option|Restart Zsh|GITSTATUS_LOG_LEVEL|Add the following parameter|^[[:space:]]*exec[[:space:]]+zsh" || true
+}
+
+{{ if .isMacOS }}
+####################################################################################################
+## macOS
+####################################################################################################
+
+# The login keychain is shared with every other application on the machine and
+# is unlocked by the login session itself, so this script never unlocks it and
+# never touches the items in it. It only checks that the keychain can be used:
+# a throwaway item is written and deleted again. A locked keychain fails with
+# "User interaction is not allowed" instead of prompting, and a keychain that
+# cannot be used must report `none` - a wrong `keyring` breaks every kubectl
+# call, while `none` merely re-authenticates.
+macos_keychain_ready() {
+    local service="chezmoi-keyring-probe"
+    command -v security >/dev/null 2>&1 || return 1
+    security delete-generic-password -s "${service}" >/dev/null 2>&1
+    security add-generic-password -U -s "${service}" -a "probe" -w "probe" >/dev/null 2>&1 || return 1
+    security delete-generic-password -s "${service}" >/dev/null 2>&1
+    return 0
+}
+
+macos_keyring() {
+    if macos_keychain_ready; then
+        log "the macOS login keychain is available"
+        return 0
+    fi
+    warn "the macOS login keychain is locked or unavailable; unlock it (Keychain Access, or unlock the login session) and run chezmoi update again"
+    return 1
+}
+{{ end }}
+
+{{ if .isLinux }}
+####################################################################################################
+## Linux and WSL2
+####################################################################################################
+
+# The Secret Service name owner, or empty when nobody owns it.
+#
+# This must be GetNameOwner and not a property read: reading a property of the
+# collection activates the gnome-keyring daemon that ships with the package
+# (`/usr/share/dbus-1/services/org.freedesktop.secrets.service`), and that
+# daemon starts a LOCKED collection and wins the name for good.
+secrets_owner() {
+    dbus-send --session --print-reply --dest=org.freedesktop.DBus /org/freedesktop/DBus \
+        org.freedesktop.DBus.GetNameOwner string:"${SECRETS_SERVICE}" 2>/dev/null |
+        sed -n 's/.*string "\(:[0-9][0-9.]*\)".*/\1/p' | head -1
+}
+
+owner_pid() {
+    dbus-send --session --print-reply --dest=org.freedesktop.DBus /org/freedesktop/DBus \
+        org.freedesktop.DBus.GetConnectionUnixProcessID string:"$1" 2>/dev/null |
+        sed -n 's/.*uint32 \([0-9]*\).*/\1/p' | head -1
+}
+
+# true / false / empty (unknown). Only call this when a daemon owns the name.
+collection_locked() {
+    dbus-send --session --print-reply --dest="${SECRETS_SERVICE}" "${LOGIN_COLLECTION}" \
+        org.freedesktop.DBus.Properties.Get \
+        string:org.freedesktop.Secret.Collection string:Locked 2>/dev/null |
+        sed -n 's/.*boolean \(true\|false\).*/\1/p' | head -1
+}
+
+daemon_cmdline() {
+    [[ -r "/proc/$1/cmdline" ]] || return 1
+    tr '\0' ' ' <"/proc/$1/cmdline"
+}
+
+# Stop a keyring daemon. Only ever a process that /proc proves is a
+# gnome-keyring daemon - never anything else on the machine.
+terminate_daemon() {
+    local pid="$1" cmd i
+    [[ -n "${pid}" ]] || return 1
+    cmd="$(daemon_cmdline "${pid}" 2>/dev/null)" || return 1
+    case "${cmd}" in
+        *gnome-keyring-daemon*) ;;
+        *)
+            warn "pid ${pid} is not a gnome-keyring daemon; leaving it alone"
+            return 1
+            ;;
+    esac
+    kill -TERM "${pid}" 2>/dev/null
+    for i in $(seq 1 20); do
+        [[ -d "/proc/${pid}" ]] || return 0
+        sleep 0.25
+    done
+    kill -KILL "${pid}" 2>/dev/null
+    return 0
+}
+
+bus_reachable() {
+    dbus-send --session --print-reply --dest=org.freedesktop.DBus /org/freedesktop/DBus \
+        org.freedesktop.DBus.ListNames >/dev/null 2>&1
+}
+
+bus_address_file() {
+    printf '%s' "${XDG_STATE_HOME:-${HOME}/.local/state}/chezmoi/dbus-session-address"
+}
+
+# A session bus is needed by the Secret Service and by the exec plugin that
+# kubectl spawns. Prefer the one of the systemd user session; on WSL, where
+# there may be no systemd at all, keep a private bus and remember its address
+# so the next shell and kubectl find the same one.
+ensure_bus() {
+    local uid addr_file out addr
+    uid="$(id -u)"
+
+    if [[ -n "${DBUS_SESSION_BUS_ADDRESS:-}" ]] && bus_reachable; then
+        return 0
+    fi
+
+    if [[ -S "/run/user/${uid}/bus" ]]; then
+        export DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/${uid}/bus"
+        return 0
+    fi
+
+    if command -v systemctl >/dev/null 2>&1; then
+        systemctl --user start dbus.socket >/dev/null 2>&1
+        if [[ -S "/run/user/${uid}/bus" ]]; then
+            export DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/${uid}/bus"
+            return 0
+        fi
+    fi
+
+    addr_file="$(bus_address_file)"
+    if [[ -r "${addr_file}" ]]; then
+        export DBUS_SESSION_BUS_ADDRESS="$(<"${addr_file}")"
+        if bus_reachable; then
+            return 0
+        fi
+        unset DBUS_SESSION_BUS_ADDRESS
+    fi
+
+    if ! command -v dbus-daemon >/dev/null 2>&1; then
+        return 1
+    fi
+    out="$(dbus-daemon --session --fork --print-address=1 --print-pid=1 2>/dev/null)"
+    addr="$(printf '%s\n' "${out}" | grep -m1 '^unix:')"
+    if [[ -z "${addr}" ]]; then
+        return 1
+    fi
+    export DBUS_SESSION_BUS_ADDRESS="${addr}"
+    mkdir -p "$(dirname "${addr_file}")"
+    (umask 077 && printf '%s\n' "${addr}" >"${addr_file}")
+    return 0
+}
+
+# The pinned versions live in the repo and Renovate bumps them; only the
+# packages that are missing are installed.
+distro_pins() {
+    local id=""
+    if [[ -r /etc/os-release ]]; then
+        id="$(. /etc/os-release 2>/dev/null; printf '%s' "${ID:-}")"
+    fi
+    case "${id}" in
+        debian) printf '%s' "${HOME}/.config/keyring/packages.debian.conf" ;;
+        ubuntu) printf '%s' "${HOME}/.config/keyring/packages.ubuntu.conf" ;;
+        *) printf '%s' "" ;;
+    esac
+}
+
+ensure_packages() {
+    local pins line pkg version missing=()
+    pins="$(distro_pins)"
+    if [[ -z "${pins}" || ! -f "${pins}" ]]; then
+        return 0
+    fi
+    while IFS= read -r line; do
+        [[ -z "${line}" || "${line}" == \#* ]] && continue
+        pkg="${line%%=*}"
+        version="${line#*=}"
+        if ! dpkg-query -W -f='${Status}' "${pkg}" 2>/dev/null | grep -q "ok installed"; then
+            missing+=("${pkg}=${version}")
+        fi
+    done <"${pins}"
+
+    if [[ ${#missing[@]} -eq 0 ]]; then
+        return 0
+    fi
+    if ! command -v sudo >/dev/null 2>&1 || ! sudo -n true 2>/dev/null; then
+        warn "missing packages and sudo needs a password; run: sudo apt-get install -y ${missing[*]}"
+        return 1
+    fi
+    log "installing ${missing[*]}"
+    sudo apt-get update -qq >/dev/null 2>&1
+    if ! sudo apt-get install -y "${missing[@]}"; then
+        warn "the pinned versions are no longer in the archive; installing the current ones"
+        sudo apt-get install -y "${missing[@]%%=*}" || return 1
+    fi
+    return 0
+}
+
+# Unlock the login keyring.
+#
+# gnome-keyring requests the Secret Service name without REPLACE, so the daemon
+# that performs the unlock has to be the one that ends up owning the name. A
+# daemon that already owns it - the systemd unit, or the one D-Bus activates on
+# demand - starts a LOCKED collection and cannot be unlocked from the outside.
+# That daemon is therefore replaced first.
+#
+# A wrong passphrase is silent: the daemon starts, owns the name and leaves the
+# collection locked. The lock state decides success, not the exit code.
+unlock_keyring() {
+    local attempt=0 unique pid cmd locked keyring_file backup moved=0 control_dir err_file op_status settled
+
+    # Look at what is already running before touching anything. A keyring that
+    # is already unlocked is left alone: that is a desktop session that works,
+    # and replacing its daemon would break it.
+    unique="$(secrets_owner)"
+    if [[ -n "${unique}" ]]; then
+        pid="$(owner_pid "${unique}")"
+        if [[ "$(collection_locked)" == "false" ]]; then
+            log "the login keyring is already unlocked (gnome-keyring-daemon pid ${pid})"
+            return 0
+        fi
+    fi
+
+    # The systemd unit starts a daemon that owns the name with a locked
+    # collection, and the socket unit would start it again on demand. Both are
+    # stopped for this session only - they come back at the next login, and
+    # the next `chezmoi update` stops them again. Make it permanent with
+    # `systemctl --user disable gnome-keyring-daemon.service
+    # gnome-keyring-daemon.socket` if a graphical session should never own the
+    # Secret Service name.
+    if command -v systemctl >/dev/null 2>&1; then
+        systemctl --user stop gnome-keyring-daemon.service gnome-keyring-daemon.socket >/dev/null 2>&1
+    fi
+
+    # The control directory holds the daemon's control socket. It lives in the
+    # runtime dir when there is one - on WSL without systemd there is none, and
+    # /run/user/$UID cannot be created without root.
+    #
+    # The path has to stay short. gnome-keyring unlinks the full path but binds
+    # a copy that is cut off at the 108 byte sun_path limit; when the two
+    # differ, the socket file of the previous daemon is never removed and the
+    # next daemon exits with "couldn't bind to control socket: Address already
+    # in use" - the keyring stays locked and the retry fails for the wrong
+    # reason.
+    if [[ -n "${XDG_RUNTIME_DIR:-}" && -d "${XDG_RUNTIME_DIR}" && -w "${XDG_RUNTIME_DIR}" ]]; then
+        control_dir="${XDG_RUNTIME_DIR}/koidc"
+    else
+        control_dir="${XDG_STATE_HOME:-${HOME}/.local/state}/chezmoi/koidc"
+    fi
+    if [[ ${#control_dir} -gt 80 ]]; then
+        control_dir="/tmp/koidc-$(id -u)"
+    fi
+    # 0700 is not a preference: gnome-keyring rejects a control directory with
+    # any other mode and silently falls back to its default, where another
+    # daemon may already hold the socket.
+    mkdir -p "${control_dir}" 2>/dev/null
+    chmod 700 "${control_dir}" 2>/dev/null
+
+    keyring_file="${XDG_DATA_HOME:-${HOME}/.local/share}/keyrings/login.keyring"
+    err_file="$(mktemp)"
+
+    while [[ ${attempt} -lt 6 ]]; do
+        attempt=$((attempt + 1))
+        unique="$(secrets_owner)"
+
+        if [[ -n "${unique}" ]]; then
+            pid="$(owner_pid "${unique}")"
+            log "replacing the locked Secret Service daemon (pid ${pid})"
+            terminate_daemon "${pid}"
+            for _ in $(seq 1 20); do
+                [[ -z "$(secrets_owner)" ]] && break
+                sleep 0.25
+            done
+            continue
+        fi
+
+        # The daemon reads the passphrase from stdin and forks into the
+        # background; it survives this script.
+        stream_unlock "${control_dir}" "${err_file}"
+        op_status=$?
+
+        settled=0
+        for _ in $(seq 1 40); do
+            sleep 0.25
+            unique="$(secrets_owner)"
+            [[ -n "${unique}" ]] || continue
+            pid="$(owner_pid "${unique}")"
+            cmd="$(daemon_cmdline "${pid}" 2>/dev/null || true)"
+            case "${cmd}" in
+                *--unlock*) ;;
+                *) continue ;;
+            esac
+            locked="$(collection_locked)"
+            if [[ "${locked}" == "false" ]]; then
+                log "the login keyring is unlocked (gnome-keyring-daemon pid ${pid})"
+                rm -f "${err_file}"
+                return 0
+            fi
+            # "true" (there is a collection, it is locked) or empty (there is no
+            # collection at all): the passphrase did not open the keyring. Give
+            # the daemon a moment, then stop waiting for it.
+            settled=$((settled + 1))
+            [[ ${settled} -ge 8 ]] && break
+        done
+
+        if [[ ${op_status} -ne 0 ]]; then
+            # The item could not be read at all, so the passphrase is unknown:
+            # the keyring on disk is not the problem and must not be touched.
+            warn "could not read ${KEYRING_ITEM}: $(filter_noise <"${err_file}" | tail -n 1)"
+            rm -f "${err_file}"
+            return 1
+        fi
+
+        # The stored passphrase does not open the keyring that is on disk.
+        # Move it aside - never delete it - and let --unlock create a new one.
+        if [[ ${moved} -eq 0 && -f "${keyring_file}" ]]; then
+            backup="${keyring_file}.bak-$(date -u +%Y%m%d%H%M%S)"
+            warn "the stored passphrase does not unlock ${keyring_file}; moving it to ${backup}"
+            if mv "${keyring_file}" "${backup}"; then
+                moved=1
+                continue
+            fi
+        fi
+        break
+    done
+
+    warn "the login keyring could not be unlocked: $(filter_noise <"${err_file}" | tail -n 1)"
+    warn "check that ${KEYRING_ITEM} holds the passphrase of this login keyring"
+    rm -f "${err_file}"
+    return 1
+}
+
+linux_keyring() {
+    command -v dbus-send >/dev/null 2>&1 || {
+        warn "dbus-send is missing; install the dbus-bin package"
+        return 1
+    }
+    command -v gnome-keyring-daemon >/dev/null 2>&1 || {
+        warn "gnome-keyring-daemon is missing; install the gnome-keyring package"
+        return 1
+    }
+
+    ensure_packages || true
+
+    if ! ensure_bus; then
+        warn "no session bus could be started; the token cannot be cached"
+        return 1
+    fi
+    if [[ -z "${XDG_RUNTIME_DIR:-}" ]]; then
+        XDG_RUNTIME_DIR="/run/user/$(id -u)"
+        mkdir -p "${XDG_RUNTIME_DIR}" 2>/dev/null && chmod 700 "${XDG_RUNTIME_DIR}" 2>/dev/null
+        export XDG_RUNTIME_DIR
+    fi
+
+    unlock_keyring
+}
+{{ end }}
+
+####################################################################################################
+## Main
+####################################################################################################
+
+main() {
+{{- if .isMacOS }}
+    macos_keyring
+{{- else if .isLinux }}
+    linux_keyring
+{{- else }}
+    log "no keyring to manage on this platform"
+{{- end }}
+}
+
+main "$@"
+
+# A keyring problem is never a reason to fail `chezmoi apply`.
+exit 0

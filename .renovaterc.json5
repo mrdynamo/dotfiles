@@ -25,6 +25,8 @@
   includePaths: [
     "home/dot_config/mise/private_config.toml",
     "home/dot_config/mise/version",
+    "home/dot_config/keyring/packages.debian.conf",
+    "home/dot_config/keyring/packages.ubuntu.conf",
     ".github/workflows/**",
   ],
   mise: {
