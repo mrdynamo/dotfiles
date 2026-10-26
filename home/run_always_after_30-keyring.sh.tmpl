@@ -42,19 +42,26 @@ LOGIN_COLLECTION="/org/freedesktop/secrets/collection/login"
 # could not be read" from "the passphrase did not open the keyring". An empty
 # passphrase is harmless: the daemon then starts without a collection and
 # creates no keyring file.
+#
+# The read is retried INSIDE the pipeline, not around it. A retry around it
+# would run the whole pipeline again and start a second daemon, which then
+# fails to bind the control socket - the retry would fail for a reason that
+# has nothing to do with the read. On WSL the Windows 1Password app answers
+# the CLI a moment after it is asked, and a read that lost that race would
+# start the daemon without a passphrase.
 stream_unlock() {
     local control_dir="$1" err_file="$2"
-    zsh -lic "op read \"${KEYRING_ITEM}\"" 2>>"${err_file}" |
+    zsh -lic "op read \"${KEYRING_ITEM}\" || { sleep 2; op read \"${KEYRING_ITEM}\" || { sleep 2; op read \"${KEYRING_ITEM}\"; }; }" 2>>"${err_file}" |
         tr -d '\r' |
         gnome-keyring-daemon --unlock --components=secrets \
             --control-directory="${control_dir}" >/dev/null 2>>"${err_file}"
     return "${PIPESTATUS[0]}"
 }
 
-# The login shell prints powerlevel10k/gitstatus noise on stderr; keep it out
-# of the messages this script prints.
+# The login shell prints powerlevel10k/gitstatus/mise noise on stderr; keep it
+# out of the messages this script prints.
 filter_noise() {
-    grep -vE "gitstatus|can't change option|Restart Zsh|GITSTATUS_LOG_LEVEL|Add the following parameter|^[[:space:]]*exec[[:space:]]+zsh" || true
+    grep -vE "gitstatus|can't change option|Restart Zsh|GITSTATUS_LOG_LEVEL|Add the following parameter|^[[:space:]]*exec[[:space:]]+zsh|mise ERROR|Set a global default version|MISE_VERBOSE" || true
 }
 
 {{ if .isMacOS }}
@@ -217,6 +224,47 @@ distro_pins() {
     esac
 }
 
+# Run a command with root privileges.
+#
+# The first attempt does not ask for a password: it succeeds where sudo is
+# configured without one (the headless devbox). Where sudo asks for a password
+# (WSL), the password is requested once from the terminal and sudo caches it
+# for the rest of the run.
+#
+# sudo reads the password from /dev/tty, so the prompt reaches the terminal
+# even when the script's own standard input is not a terminal. A script that
+# has no terminal cannot ask for a password and says so instead.
+sudo_run() {
+    if [[ -n "${SUDO_READY:-}" ]]; then
+        sudo "$@"
+        return $?
+    fi
+
+    if ! command -v sudo >/dev/null 2>&1; then
+        return 1
+    fi
+
+    if sudo -n true 2>/dev/null; then
+        SUDO_READY=1
+        sudo "$@"
+        return $?
+    fi
+
+    # No passwordless sudo. The password can only be asked for where there is
+    # a terminal to ask on.
+    if ! ( : </dev/tty ) 2>/dev/null; then
+        warn "sudo needs a password and there is no terminal to ask on"
+        return 1
+    fi
+
+    warn "sudo needs a password; enter it to install the keyring packages"
+    if ! sudo -v; then
+        return 1
+    fi
+    SUDO_READY=1
+    sudo "$@"
+}
+
 ensure_packages() {
     local pins line pkg version missing=()
     pins="$(distro_pins)"
@@ -235,17 +283,51 @@ ensure_packages() {
     if [[ ${#missing[@]} -eq 0 ]]; then
         return 0
     fi
-    if ! command -v sudo >/dev/null 2>&1 || ! sudo -n true 2>/dev/null; then
-        warn "missing packages and sudo needs a password; run: sudo apt-get install -y ${missing[*]}"
+    if ! command -v sudo >/dev/null 2>&1; then
+        warn "sudo is missing; install the keyring packages as root with:"
+        warn "  apt-get install -y ${missing[*]%%=*}"
         return 1
     fi
+    # The install needs root, and a missing privilege is a different problem
+    # from a missing version. The privilege is settled once, up front, so that
+    # the messages below are about the install and not about sudo.
+    if ! sudo_run true; then
+        warn "the keyring packages are missing and root is not available; run this as root:"
+        warn "  apt-get install -y ${missing[*]%%=*}"
+        return 1
+    fi
+
     log "installing ${missing[*]}"
-    sudo apt-get update -qq >/dev/null 2>&1
-    if ! sudo apt-get install -y "${missing[@]}"; then
+    if ! sudo_run apt-get update -qq; then
+        warn "the apt package lists could not be refreshed; the install may fail"
+    fi
+    if ! sudo_run apt-get install -y "${missing[@]}"; then
         warn "the pinned versions are no longer in the archive; installing the current ones"
-        sudo apt-get install -y "${missing[@]%%=*}" || return 1
+        if ! sudo_run apt-get install -y "${missing[@]%%=*}"; then
+            warn "the keyring packages could not be installed; run this as root:"
+            warn "  apt-get install -y ${missing[*]%%=*}"
+            return 1
+        fi
     fi
     return 0
+}
+
+# A Secret Service that a client can write to is the one kubelogin can store
+# the token in: it resolves the collection through the `default` alias and
+# saves the item there. secret-tool is the reference client and does exactly
+# that, with a throwaway item.
+#
+# An unlocked collection is not the same thing: it can be unlocked and still
+# be unusable for a client.
+secret_service_usable() {
+    command -v secret-tool >/dev/null 2>&1 || return 1
+    command -v timeout >/dev/null 2>&1 || return 1
+    local got
+    timeout 20 secret-tool store --label='chezmoi-keyring-probe' chezmoi-keyring-probe probe \
+        </dev/null >/dev/null 2>&1 || return 1
+    got="$(timeout 20 secret-tool lookup chezmoi-keyring-probe 2>/dev/null)"
+    timeout 20 secret-tool clear chezmoi-keyring-probe </dev/null >/dev/null 2>&1
+    [[ "${got}" == "probe" ]]
 }
 
 # Unlock the login keyring.
@@ -358,7 +440,19 @@ unlock_keyring() {
         if [[ ${op_status} -ne 0 ]]; then
             # The item could not be read at all, so the passphrase is unknown:
             # the keyring on disk is not the problem and must not be touched.
+            #
+            # The daemon that was started without a passphrase owns no
+            # collection. It is stopped, so that the next run starts from a
+            # clean bus instead of finding a daemon that can never be
+            # unlocked from the outside.
+            unique="$(secrets_owner)"
+            if [[ -n "${unique}" ]]; then
+                terminate_daemon "$(owner_pid "${unique}")" || true
+            fi
             warn "could not read ${KEYRING_ITEM}: $(filter_noise <"${err_file}" | tail -n 1)"
+{{- if .isWSL }}
+            warn "on WSL the passphrase comes from the Windows 1Password app: start it, unlock it, then run chezmoi update again"
+{{- end }}
             rm -f "${err_file}"
             return 1
         fi
@@ -387,12 +481,17 @@ linux_keyring() {
         warn "dbus-send is missing; install the dbus-bin package"
         return 1
     }
+    # The packages come first. On a machine that never had a keyring,
+    # gnome-keyring-daemon is exactly what is missing, and the check below
+    # returns before the install is ever attempted. That is how WSL ended up
+    # without a keyring at all: the install was dead code behind the check
+    # for the thing it was supposed to install.
+    ensure_packages || true
+
     command -v gnome-keyring-daemon >/dev/null 2>&1 || {
         warn "gnome-keyring-daemon is missing; install the gnome-keyring package"
         return 1
     }
-
-    ensure_packages || true
 
     if ! ensure_bus; then
         warn "no session bus could be started; the token cannot be cached"
@@ -404,7 +503,14 @@ linux_keyring() {
         export XDG_RUNTIME_DIR
     fi
 
-    unlock_keyring
+    unlock_keyring || return 1
+
+    if secret_service_usable; then
+        log "the Secret Service stores and returns items"
+    else
+        warn "the Secret Service is unlocked but a client could not store an item; kubelogin may not be able to cache the token"
+    fi
+    return 0
 }
 {{ end }}
 
