@@ -323,10 +323,15 @@ secret_service_usable() {
     command -v secret-tool >/dev/null 2>&1 || return 1
     command -v timeout >/dev/null 2>&1 || return 1
     local got
-    timeout 20 secret-tool store --label='chezmoi-keyring-probe' chezmoi-keyring-probe probe \
-        </dev/null >/dev/null 2>&1 || return 1
-    got="$(timeout 20 secret-tool lookup chezmoi-keyring-probe 2>/dev/null)"
-    timeout 20 secret-tool clear chezmoi-keyring-probe </dev/null >/dev/null 2>&1
+    # secret-tool reads the password from stdin, so the value has to be piped
+    # in: without it the item is stored with an empty password, and the lookup
+    # below can never match it.
+    printf 'probe' | timeout 20 secret-tool store --label='chezmoi-keyring-probe' \
+        chezmoi-keyring-probe probe >/dev/null 2>&1 || return 1
+    # lookup takes attribute/value pairs, so the attribute alone is not a
+    # query - it is an error, not an empty result.
+    got="$(timeout 20 secret-tool lookup chezmoi-keyring-probe probe 2>/dev/null)"
+    timeout 20 secret-tool clear chezmoi-keyring-probe probe >/dev/null 2>&1
     [[ "${got}" == "probe" ]]
 }
 
