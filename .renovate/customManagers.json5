@@ -1,5 +1,12 @@
 {
 	$schema: "https://docs.renovatebot.com/renovate-schema.json",
+	// The apt pin files are multi-line, and their matchStrings carry the
+	// inline "(?m)" flag for that reason. Renovate compiles them with RE2 and
+	// only the "g" flag, so "^" and "$" anchor to the start and the end of the
+	// whole file. Without "(?m)" a pattern like "^(?<depName>...)=...$" matches
+	// nothing in a multi-line file, the dependency is never extracted, and the
+	// file never shows up on the dependency dashboard at all. The mise file
+	// holds a single version, so it matches without the flag.
 	customManagers: [
 		{
 			customType: "regex",
@@ -22,9 +29,13 @@
 				"/(^|/)home/dot_config/keyring/packages\\.debian\\.conf$/",
 			],
 			matchStrings: [
-				"^(?<depName>[a-z0-9][a-z0-9.+-]*)=(?<currentValue>[0-9][^\\s]*)$",
+				"(?m)^(?<depName>[a-z0-9][a-z0-9.+-]*)=(?<currentValue>[0-9][^\\s]*)$",
 			],
 			datasourceTemplate: "deb",
+			// Only the release pocket is readable: the deb datasource always
+			// fetches "Packages.gz", and Debian publishes the security and
+			// stable-updates pockets as "Packages.xz" only. A security update
+			// for one of these packages is therefore not picked up here.
 			registryUrlTemplate: "https://deb.debian.org/debian?suite=stable&components=main&binaryArch=amd64",
 			versioningTemplate: "deb",
 		},
@@ -35,10 +46,14 @@
 				"/(^|/)home/dot_config/keyring/packages\\.ubuntu\\.conf$/",
 			],
 			matchStrings: [
-				"^(?<depName>[a-z0-9][a-z0-9.+-]*)=(?<currentValue>[0-9][^\\s]*)$",
+				"(?m)^(?<depName>[a-z0-9][a-z0-9.+-]*)=(?<currentValue>[0-9][^\\s]*)$",
 			],
 			datasourceTemplate: "deb",
-			registryUrlTemplate: "https://archive.ubuntu.com/ubuntu?suite=noble&components=main&binaryArch=amd64",
+			// The release pocket alone is not what apt installs. The
+			// -updates and -security pockets are attached in the repository
+			// configuration, because a custom manager may set only one
+			// registry URL. libsecret-tools is in universe, not main.
+			registryUrlTemplate: "https://archive.ubuntu.com/ubuntu?suite=noble&components=main,universe&binaryArch=amd64",
 			versioningTemplate: "deb",
 		},
 	],

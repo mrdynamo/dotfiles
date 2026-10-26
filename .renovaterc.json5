@@ -29,6 +29,23 @@
     "home/dot_config/keyring/packages.ubuntu.conf",
     ".github/workflows/**",
   ],
+  packageRules: [
+    {
+      // apt installs from the release pocket *and* the -updates/-security
+      // pockets, so the release pocket alone would propose stale versions.
+      // A custom manager may only set one registry URL, so the extra
+      // pockets are attached here.
+      description: "Track the Ubuntu release, updates and security pockets",
+      matchFileNames: [
+        "home/dot_config/keyring/packages.ubuntu.conf",
+      ],
+      registryUrls: [
+        "https://archive.ubuntu.com/ubuntu?suite=noble&components=main,universe&binaryArch=amd64",
+        "https://archive.ubuntu.com/ubuntu?suite=noble-updates&components=main,universe&binaryArch=amd64",
+        "https://archive.ubuntu.com/ubuntu?suite=noble-security&components=main,universe&binaryArch=amd64",
+      ],
+    },
+  ],
   mise: {
     managerFilePatterns: [
       "/home/dot_config/mise/private_config\\.toml$/"

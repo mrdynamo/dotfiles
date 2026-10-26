@@ -477,16 +477,17 @@ unlock_keyring() {
 }
 
 linux_keyring() {
+    # The packages come first. On a machine that never had a keyring,
+    # gnome-keyring-daemon is exactly what is missing, and the checks below
+    # return before the install is ever attempted. That is how WSL ended up
+    # without a keyring at all: the install was dead code behind the check
+    # for the thing it was supposed to install.
+    ensure_packages || true
+
     command -v dbus-send >/dev/null 2>&1 || {
         warn "dbus-send is missing; install the dbus-bin package"
         return 1
     }
-    # The packages come first. On a machine that never had a keyring,
-    # gnome-keyring-daemon is exactly what is missing, and the check below
-    # returns before the install is ever attempted. That is how WSL ended up
-    # without a keyring at all: the install was dead code behind the check
-    # for the thing it was supposed to install.
-    ensure_packages || true
 
     command -v gnome-keyring-daemon >/dev/null 2>&1 || {
         warn "gnome-keyring-daemon is missing; install the gnome-keyring package"
