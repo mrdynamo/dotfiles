@@ -9,7 +9,7 @@ source "$HOME/.config/zsh/alias.zsh"
 #source "$HOME/.config/zsh/plugin_manager.zsh"
 
 # Source the functions file
-#source "$HOME/.config/zsh/functions.zsh"
+source "$HOME/.config/zsh/functions.zsh"
 
 # Set environment variables
 source "$HOME/.config/zsh/env.zsh"

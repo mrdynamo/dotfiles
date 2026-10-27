@@ -1,0 +1,40 @@
+####################################################################################################
+## devup
+####################################################################################################
+# Refresh the dotfiles, the home-ops repo and its mise tools, then restart the
+# shell so any changed zsh config is loaded:
+#
+#   chezmoi update -> git pull home-ops -> cd home-ops -> mise install -> mise prune -> exec zsh
+#
+# It is a function and not a script in ~/.local/bin because the cd has to
+# change the directory of this shell, not of a child process.
+#
+# Machines without the home-ops clone (work machines) skip the pull and the cd,
+# and install the global mise tools from $HOME instead.
+: ${DEVUP_PROJECT_DIR:="$HOME/dev/home-ops"}
+
+devup() {
+  emulate -L zsh
+
+  print -P "%F{blue}==>%f chezmoi update"
+  chezmoi update || { print -u2 "devup: chezmoi update failed"; return 1 }
+
+  if [[ -d "$DEVUP_PROJECT_DIR/.git" ]]; then
+    # --ff-only never creates a merge commit; a diverged or dirty clone fails
+    # here instead of being changed.
+    print -P "%F{blue}==>%f git pull ($DEVUP_PROJECT_DIR)"
+    git -C "$DEVUP_PROJECT_DIR" pull --ff-only || { print -u2 "devup: git pull failed"; return 1 }
+
+    cd "$DEVUP_PROJECT_DIR" || return 1
+    print -P "%F{blue}==>%f mise install && mise prune"
+    mise install && mise prune --yes || { print -u2 "devup: mise failed"; return 1 }
+  else
+    print -P "%F{yellow}==>%f $DEVUP_PROJECT_DIR not found; installing global mise tools only"
+    mise -C "$HOME" install && mise -C "$HOME" prune --yes || { print -u2 "devup: mise failed"; return 1 }
+  fi
+
+  # Reload the shell so config changed by chezmoi update takes effect. The
+  # working directory carries over to the new shell.
+  print -P "%F{green}==>%f done; restarting zsh"
+  exec zsh
+}
