@@ -6,7 +6,7 @@ experimental = true
 compile = false
 
 [tools]
-1password = "2.34.0"
+1password = "2.41.1"
 atuin = "18.24.2"
 bat = "0.26.1"
 chezmoi = "2.73.3"
