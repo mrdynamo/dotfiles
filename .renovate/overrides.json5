@@ -1,0 +1,24 @@
+{
+	$schema: "https://docs.renovatebot.com/renovate-schema.json",
+	packageRules: [
+		{
+			// The mise manager resolves "1password" to the aqua package
+			// "1password/cli" and, lacking a better mapping, looks it up as the
+			// GitHub repository 1password/cli. That repository does not exist: aqua
+			// installs the CLI from cache.agilebits.com ("type: http"), and 1Password
+			// publishes no GitHub releases or tags for it. The lookup fails with
+			// "no-result" and no PR is ever opened. 1Password does publish every
+			// CLI release as a tag of the 1password/op Docker image, so look the
+			// versions up there instead.
+			description: "Look up the 1Password CLI on the 1password/op Docker image",
+			matchManagers: [
+				"mise"
+			],
+			matchDepNames: [
+				"1password"
+			],
+			overrideDatasource: "docker",
+			overridePackageName: "1password/op",
+		},
+	],
+}
