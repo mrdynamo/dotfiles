@@ -70,7 +70,12 @@ ZSH_THEME="powerlevel10k/powerlevel10k"
 ## [6] Plugin list
 # Keep this list lean. kubectl plugin is intentionally excluded because it
 # early-exits when kubectl is not on PATH at startup (mise adds it later).
-plugins=(common-aliases encode64 git gh kube-ps1 k9s mise zsh-autosuggestions zsh-syntax-highlighting)
+# k9s plugin is excluded for the opposite reason: it only loads when k9s IS on
+# PATH (the mise shim), and the shim errors outside the project where k9s has
+# no pinned version. Its zsh completion still loads from $ZSH_CACHE_DIR via
+# fpath; regenerate after a k9s upgrade with:
+#   (cd ~/dev/home-ops && k9s completion zsh > ~/.cache/oh-my-zsh/completions/_k9s)
+plugins=(common-aliases encode64 git gh kube-ps1 mise zsh-autosuggestions zsh-syntax-highlighting)
 
 ## [7] Load oh-my-zsh
 if [[ -d "$ZSH" ]]; then
