@@ -24,7 +24,9 @@ if [[ "${current}" == "${MISE_VERSION}" ]]; then
 fi
 
 echo "Installing mise ${MISE_VERSION} (was: ${current})"
-MISE_VERSION="v${MISE_VERSION}" curl -fsSL https://mise.run | sh
+# The pin must prefix `sh`, not `curl`: an assignment prefix only reaches the
+# command it precedes, and the installer reads MISE_VERSION from its own env.
+curl -fsSL https://mise.run | MISE_VERSION="v${MISE_VERSION}" sh
 
 # mise.run installs to ~/.local/bin/mise. Ensure it's on PATH for this shell
 # session so any subsequent `mise install` in the same apply resolves the

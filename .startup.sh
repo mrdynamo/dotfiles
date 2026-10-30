@@ -322,14 +322,8 @@ install_mise_tools() {
     # Trust the global config so mise does not prompt in non-interactive mode.
     "$mise_bin" trust --all >/dev/null 2>&1 || true
 
-    # After the initial brew install, snap the mise binary to whatever version
-    # is pinned in the global config (`core:mise`). Renovate bumps that entry on
-    # new releases; this keeps the on-disk binary in lockstep.
-    if "$mise_bin" self-update --yes --quiet >/dev/null 2>&1; then
-        log_ok "mise self-updated to pinned version"
-    else
-        log_warn "mise self-update did not run (this is expected on first bootstrap before core:mise is installed)"
-    fi
+    # No `mise self-update` here: it would float the binary past the version
+    # pinned in home/dot_config/mise/version, which is the sole source of truth.
 
     "$mise_bin" install --yes
     log_ok "mise tools installed"
