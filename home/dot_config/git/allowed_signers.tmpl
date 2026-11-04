@@ -1,0 +1,12 @@
+{{- /*
+  SSH keys trusted for verifying git commit/tag signatures locally.
+  Referenced by gpg.ssh.allowedSignersFile in dot_gitconfig.tmpl.
+  Format: <principal> namespaces="git" <public key>
+  Every signing key is listed on every machine so commits made on any
+  machine verify everywhere.
+*/ -}}
+{{- $email := "mrdynamo@dynamiclab.org" -}}
+# macOS / WSL signing key (1Password agent)
+{{ $email }} namespaces="git" {{ onepasswordRead "op://Chezmoi/jvz7ife75zhjagzlfbqkpjfniu/public key" | trim }}
+# Personal native Linux signing key (~/.ssh/id_ed25519)
+{{ $email }} namespaces="git" {{ onepasswordRead "op://Chezmoi/zi2cozec7lcpi7vtjntwltrzba/public key" | trim }}

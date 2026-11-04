@@ -1,0 +1,33 @@
+#!/usr/bin/env bash
+# chezmoi:execute
+#
+# Import GitHub's web-flow OpenPGP key so commits GitHub signs on your behalf
+# (web UI edits/merges, Renovate and other GitHub App commits where the
+# committer is "GitHub") verify locally. Git uses gpg for OpenPGP signatures
+# regardless of gpg.format=ssh.
+#
+# Bump KEY_REVISION to re-import (e.g. after GitHub rotates the key).
+# KEY_REVISION: 1
+#
+# `set -e` is deliberately off: a missing gpg or network failure must not
+# fail `chezmoi apply`.
+set -uo pipefail
+
+log() { printf '[web-flow-key] %s\n' "$*"; }
+
+if ! command -v gpg >/dev/null 2>&1; then
+    log "gpg not installed; skipping"
+    exit 0
+fi
+
+if ! key="$(curl -fsSL --max-time 15 https://github.com/web-flow.gpg)"; then
+    log "could not download https://github.com/web-flow.gpg; skipping"
+    exit 0
+fi
+
+if printf '%s\n' "${key}" | gpg --batch --quiet --import 2>/dev/null; then
+    log "imported GitHub web-flow key"
+else
+    log "gpg import failed; skipping"
+fi
+exit 0

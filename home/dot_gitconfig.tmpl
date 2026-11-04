@@ -10,12 +10,14 @@
 [gpg]
   format = ssh
 
-{{- if .isMacOS }}
+# Trusted SSH signing keys for local verification (`git log --show-signature`,
+# `git verify-commit`). Without this, SSH-signed commits show as unsigned (N).
 [gpg "ssh"]
+  allowedSignersFile = ~/.config/git/allowed_signers
+{{- if .isMacOS }}
   program = /Applications/1Password.app/Contents/MacOS/op-ssh-sign
 {{- else if .isWSL }}
 {{- $windowsUsername := (output "powershell.exe" "$env:UserName" | trim) }}
-[gpg "ssh"]
   program = /mnt/c/Users/{{ $windowsUsername }}/AppData/Local/Microsoft/WindowsApps/op-ssh-sign-wsl.exe
 {{- end }}
 
