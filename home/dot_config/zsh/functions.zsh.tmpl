@@ -38,3 +38,216 @@ devup() {
   print -P "%F{green}==>%f done; restarting zsh"
   exec zsh
 }
+
+####################################################################################################
+## fnhelp - help for the custom functions in this file
+####################################################################################################
+# Each function registers a one-line usage + description in _FN_HELP.
+#   fnhelp            list every registered function
+#   fnhelp <name>     show one function (also: <name> -h)
+#   fnhelp <text>     filter the list (e.g. fnhelp trivy)
+typeset -gA _FN_HELP
+
+_fn_register() { _FN_HELP[$1]="$2"; }
+
+fnhelp() {
+  emulate -L zsh
+  if [[ -n "$1" && -n "${_FN_HELP[$1]}" ]]; then
+    print -P "%F{cyan}$1%f  ${_FN_HELP[$1]}"
+    return
+  fi
+  local name found=0
+  for name in ${(ko)_FN_HELP}; do
+    [[ -n "$1" && "$name ${_FN_HELP[$name]}" != *${1}* ]] && continue
+    print -P "%F{cyan}${(r:12:)name}%f ${_FN_HELP[$name]}"
+    found=1
+  done
+  (( found )) || { print -u2 "fnhelp: nothing matches '$1'"; return 1 }
+}
+_fn_register fnhelp "[name|filter] - list custom functions, or show help for one"
+_fn_register devup  "- chezmoi update, pull home-ops, mise install/prune, restart zsh"
+
+####################################################################################################
+## Trivy operator helpers (view-only, nothing here mutates the cluster)
+####################################################################################################
+# All read the trivy-operator report CRDs through kubectl + jq.
+# Set TRIVY_NS to scope to one namespace; default is every namespace.
+# Output is tab separated and piped through `column`, so it also pipes to
+# fzf / less -S / grep.
+_trivy_ns() { [[ -n "$TRIVY_NS" ]] && print -- "-n $TRIVY_NS" || print -- "-A"; }
+
+# Table helper: _tbl COL1 COL2 ... reads tab separated rows on stdin and prints
+# them aligned under a header line.
+_tbl() {
+  { print -r -- "${(pj:\t:)@}"; cat; } | column -ts$'\t'
+}
+
+# Guard: -h/--help prints the registered usage instead of running.
+_fn_help_guard() {
+  [[ "$2" == -h || "$2" == --help ]] && { fnhelp "$1"; return 0 }
+  return 1
+}
+
+# Summary: images with critical/high CVEs, worst first.
+tv() {
+  _fn_help_guard tv "$1" && return
+  kubectl get vulnerabilityreports $(_trivy_ns) -o json | jq -r '
+    [.items[] | select(.report.summary.criticalCount>0 or .report.summary.highCount>0)
+     | {ns:.metadata.namespace,
+        wl:(.metadata.labels["trivy-operator.resource.kind"]+"/"+.metadata.labels["trivy-operator.resource.name"]),
+        img:(.report.artifact.repository+":"+(.report.artifact.tag//"")),
+        c:.report.summary.criticalCount, h:.report.summary.highCount}]
+    | sort_by(-.c,-.h)[] | [.ns,.wl,.img,.c,.h] | @tsv' | _tbl "NAMESPACE" "WORKLOAD" "IMAGE" "CRITICAL" "HIGH"
+}
+_fn_register tv "- images with critical/high CVEs, worst first (TRIVY_NS=<ns> to scope)"
+
+# CVE detail for a namespace and optional workload.
+tvd() {
+  _fn_help_guard tvd "$1" && return
+  [[ -z "$1" ]] && { fnhelp tvd; return 1 }
+  kubectl get vulnerabilityreports -n "$1" ${2:+-l trivy-operator.resource.name=$2} -o json | jq -r '
+    .items[] as $r | $r.report.vulnerabilities[]
+    | select(.severity=="CRITICAL" or .severity=="HIGH")
+    | [.severity,.vulnerabilityID,$r.metadata.labels["trivy-operator.resource.name"],
+       .resource,.installedVersion,(.fixedVersion//"no-fix")] | @tsv' | sort | _tbl "SEVERITY" "CVE" "WORKLOAD" "PACKAGE" "INSTALLED" "FIXED"
+}
+_fn_register tvd "<ns> [workload] - critical/high CVEs with installed and fixed version"
+
+# Only CVEs that have a fix available.
+tvfix() {
+  _fn_help_guard tvfix "$1" && return
+  kubectl get vulnerabilityreports $(_trivy_ns) -o json | jq -r '
+    .items[] as $r | $r.report.vulnerabilities[]
+    | select((.severity=="CRITICAL" or .severity=="HIGH") and (.fixedVersion//"")!="")
+    | [.severity,.vulnerabilityID,$r.metadata.namespace,
+       $r.metadata.labels["trivy-operator.resource.name"],
+       .resource,.installedVersion,.fixedVersion] | @tsv' | sort | _tbl "SEVERITY" "CVE" "NAMESPACE" "WORKLOAD" "PACKAGE" "INSTALLED" "FIXED"
+}
+_fn_register tvfix "- critical/high CVEs that have a fixed version (the actionable list)"
+
+# Which workloads are hit by one CVE.
+tvcve() {
+  _fn_help_guard tvcve "$1" && return
+  [[ -z "$1" ]] && { fnhelp tvcve; return 1 }
+  kubectl get vulnerabilityreports -A -o json | jq -r --arg id "$1" '
+    .items[] as $r | $r.report.vulnerabilities[]
+    | select(.vulnerabilityID==$id)
+    | [$r.metadata.namespace,$r.metadata.labels["trivy-operator.resource.name"],
+       $r.report.artifact.repository+":"+($r.report.artifact.tag//""),
+       .resource,.installedVersion,(.fixedVersion//"no-fix")] | @tsv' | sort -u | _tbl "NAMESPACE" "WORKLOAD" "IMAGE" "PACKAGE" "INSTALLED" "FIXED"
+}
+_fn_register tvcve "<CVE-ID> - every workload/image affected by one CVE"
+
+# Count of crit/high per namespace.
+tvns() {
+  _fn_help_guard tvns "$1" && return
+  kubectl get vulnerabilityreports -A -o json | jq -r '
+    [.items[] | {ns:.metadata.namespace, c:.report.summary.criticalCount, h:.report.summary.highCount}]
+    | group_by(.ns) | map({ns:.[0].ns, c:(map(.c)|add), h:(map(.h)|add)})
+    | sort_by(-.c,-.h)[] | [.ns,.c,.h] | @tsv' | _tbl "NAMESPACE" "CRITICAL" "HIGH"
+}
+_fn_register tvns "- critical/high totals per namespace"
+
+# Interactive: pick a report with fzf, preview its crit/high CVEs.
+tvf() {
+  _fn_help_guard tvf "$1" && return
+  command -v fzf >/dev/null || { print -u2 "tvf: fzf not installed"; return 1 }
+  kubectl get vulnerabilityreports $(_trivy_ns) --no-headers \
+    -o custom-columns=NS:.metadata.namespace,NAME:.metadata.name,C:.report.summary.criticalCount,H:.report.summary.highCount \
+  | fzf --header 'NS NAME CRIT HIGH' --preview '
+      kubectl get vulnerabilityreport -n {1} {2} -o json | jq -r ".report.vulnerabilities[]
+      | select(.severity==\"CRITICAL\" or .severity==\"HIGH\")
+      | [.severity,.vulnerabilityID,.resource,.installedVersion,(.fixedVersion//\"-\")] | @tsv" | (printf \"SEVERITY\\tCVE\\tPACKAGE\\tINSTALLED\\tFIXED\\n\"; cat) | column -ts"$(printf "\t")"'
+}
+_fn_register tvf "- fzf picker over vulnerability reports with a CVE preview pane"
+
+# Failed critical/high config audit checks.
+tca() {
+  _fn_help_guard tca "$1" && return
+  kubectl get configauditreports $(_trivy_ns) -o json | jq -r '
+    .items[] as $r | $r.report.checks[]
+    | select(.success==false and (.severity=="CRITICAL" or .severity=="HIGH"))
+    | [.severity,.checkID,$r.metadata.namespace,
+       $r.metadata.labels["trivy-operator.resource.name"],.title] | @tsv' | sort | _tbl "SEVERITY" "CHECK" "NAMESPACE" "WORKLOAD" "TITLE"
+}
+_fn_register tca "- failed critical/high config audit checks"
+
+# Failed checks for one workload, with remediation text.
+tcad() {
+  _fn_help_guard tcad "$1" && return
+  [[ -z "$1" || -z "$2" ]] && { fnhelp tcad; return 1 }
+  kubectl get configauditreports -n "$1" -l trivy-operator.resource.name="$2" -o json | jq -r '
+    .items[].report.checks[] | select(.success==false)
+    | "[\(.severity)] \(.checkID) \(.title)\n    \(.description)\n    fix: \(.remediation // "n/a")\n"'
+}
+_fn_register tcad "<ns> <workload> - all failed config checks with remediation text"
+
+# Exposed secrets found in images.
+tsec() {
+  _fn_help_guard tsec "$1" && return
+  kubectl get exposedsecretreports $(_trivy_ns) -o json | jq -r '
+    .items[] as $r | $r.report.secrets[]?
+    | [.severity,.ruleID,.title,$r.metadata.namespace,
+       $r.metadata.labels["trivy-operator.resource.name"],.target] | @tsv' | sort | _tbl "SEVERITY" "RULE" "TITLE" "NAMESPACE" "WORKLOAD" "FILE"
+}
+_fn_register tsec "- secrets found inside images (rule, workload, file path)"
+
+# RBAC findings (namespaced + cluster-scoped).
+trbac() {
+  _fn_help_guard trbac "$1" && return
+  { kubectl get rbacassessmentreports -A -o json
+    kubectl get clusterrbacassessmentreports -o json; } | jq -rs '
+    [.[].items[]] | .[] as $r | $r.report.checks[]
+    | select(.success==false and (.severity=="CRITICAL" or .severity=="HIGH"))
+    | [.severity,.checkID,($r.metadata.namespace//"cluster"),
+       $r.metadata.labels["trivy-operator.resource.name"],.title] | @tsv' | sort | _tbl "SEVERITY" "CHECK" "NAMESPACE" "WORKLOAD" "TITLE"
+}
+_fn_register trbac "- failed critical/high RBAC checks (namespaced and cluster)"
+
+# Node / control-plane findings.
+tinfra() {
+  _fn_help_guard tinfra "$1" && return
+  kubectl get infraassessmentreports -A -o json | jq -r '
+    .items[] as $r | $r.report.checks[]
+    | select(.success==false and (.severity=="CRITICAL" or .severity=="HIGH"))
+    | [.severity,.checkID,$r.metadata.namespace,
+       $r.metadata.labels["trivy-operator.resource.name"],.title] | @tsv' | sort | _tbl "SEVERITY" "CHECK" "NAMESPACE" "WORKLOAD" "TITLE"
+}
+_fn_register tinfra "- failed critical/high infra assessment checks"
+
+# One-shot dashboard of everything.
+tall() {
+  _fn_help_guard tall "$1" && return
+  local f
+  for f in "tv:Vulnerabilities" "tca:Config audits" "tsec:Exposed secrets" "trbac:RBAC" "tinfra:Infra"; do
+    print -P "\n%F{blue}== ${f#*:} ==%f"
+    ${f%%:*}
+  done
+}
+_fn_register tall "- run tv, tca, tsec, trbac and tinfra in one go"
+
+# Scan health: are reports fresh, are scan jobs running or failing.
+tstat() {
+  _fn_help_guard tstat "$1" && return
+  local ns="${TRIVY_OPERATOR_NS:-observability}" k
+  print -P "%F{blue}== report counts ==%f"
+  printf '%-30s %s\n' "REPORT" "COUNT"
+  for k in vulnerabilityreports configauditreports exposedsecretreports rbacassessmentreports infraassessmentreports; do
+    printf '%-30s %s\n' "$k" "$(kubectl get $k -A --no-headers 2>/dev/null | wc -l)"
+  done
+  print -P "%F{blue}== newest vulnerability report ==%f"
+  kubectl get vulnerabilityreports -A --sort-by=.metadata.creationTimestamp 2>/dev/null | sed -n '1p;$p'
+  print -P "%F{blue}== operator pod ($ns) ==%f"
+  kubectl get pods -n "$ns" -l 'app.kubernetes.io/name=trivy-operator' 2>/dev/null
+  print -P "%F{blue}== scan jobs ($ns) ==%f"
+  kubectl get jobs -n "$ns" -l app.kubernetes.io/managed-by=trivy-operator 2>/dev/null
+}
+_fn_register tstat "- report counts, newest report, operator pod and running scan jobs"
+
+# Raw JSON of one report, handy for piping.
+tvraw() {
+  _fn_help_guard tvraw "$1" && return
+  [[ -z "$1" || -z "$2" ]] && { fnhelp tvraw; return 1 }
+  kubectl get vulnerabilityreports -n "$1" -l trivy-operator.resource.name="$2" -o json | jq '.items[]'
+}
+_fn_register tvraw "<ns> <workload> - full JSON of the report(s) for a workload"
