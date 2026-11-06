@@ -361,15 +361,26 @@ unlock_keyring() {
     fi
 
     # The systemd unit starts a daemon that owns the name with a locked
-    # collection, and the socket unit would start it again on demand. Both are
-    # stopped for this session only - they come back at the next login, and
-    # the next `chezmoi update` stops them again. Make it permanent with
-    # `systemctl --user disable gnome-keyring-daemon.service
+    # collection, and the socket unit would start it again on demand.
+{{- if .isWSL }}
+    # On WSL they are disabled for good: after a Windows reboot they would start
+    # at login with a locked collection, before `chezmoi update` runs, and a
+    # client (kubelogin from Lens or kubectl) then waits forever on an unlock
+    # prompt while holding its token-cache lock. The D-Bus activation overrides
+    # in ~/.local/share/dbus-1/services/ close the other way in.
+    if command -v systemctl >/dev/null 2>&1; then
+        systemctl --user disable --now gnome-keyring-daemon.service gnome-keyring-daemon.socket >/dev/null 2>&1
+    fi
+{{- else }}
+    # Both are stopped for this session only - they come back at the next
+    # login, and the next `chezmoi update` stops them again. Make it permanent
+    # with `systemctl --user disable gnome-keyring-daemon.service
     # gnome-keyring-daemon.socket` if a graphical session should never own the
     # Secret Service name.
     if command -v systemctl >/dev/null 2>&1; then
         systemctl --user stop gnome-keyring-daemon.service gnome-keyring-daemon.socket >/dev/null 2>&1
     fi
+{{- end }}
 
     # The control directory holds the daemon's control socket. It lives in the
     # runtime dir when there is one - on WSL without systemd there is none, and

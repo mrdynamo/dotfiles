@@ -36,3 +36,11 @@ AppData/**
 {{- if not (and .isPersonal .isMacOS) }}
 Library/**
 {{- end }}
+
+# D-Bus activation overrides that stop a LOCKED gnome-keyring daemon from being
+# auto-started. WSL only: there the keyring holds nothing but the kubelogin
+# token cache and is unlocked by run_always_after_30-keyring.sh. A native Linux
+# desktop session relies on activation, so it keeps the packaged files.
+{{- if not .isWSL }}
+.local/share/dbus-1/**
+{{- end }}

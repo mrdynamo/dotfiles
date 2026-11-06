@@ -1,0 +1,6 @@
+[D-BUS Service]
+# WSL only. Same reason as org.freedesktop.secrets.service: activating this
+# name starts a gnome-keyring daemon that also claims the Secret Service name
+# with a locked collection.
+Name=org.gnome.keyring
+Exec=/bin/false
