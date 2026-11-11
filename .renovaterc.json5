@@ -1,55 +1,53 @@
 {
-  $schema: "https://docs.renovatebot.com/renovate-schema.json",
+  $schema: 'https://docs.renovatebot.com/renovate-schema.json',
   extends: [
-    "config:recommended",
-    "helpers:pinGitHubActionDigests",
-    "github>mrdynamo/dotfiles//.renovate/semanticCommits.json5",
-    "github>mrdynamo/dotfiles//.renovate/labels.json5",
-    "github>mrdynamo/dotfiles//.renovate/customManagers.json5",
-    "github>mrdynamo/dotfiles//.renovate/overrides.json5",
-    ":automergeBranch",
-    ":disableRateLimiting",
-    ":dependencyDashboard",
-    ":semanticCommits",
-    ":timezone(America/Chicago)",
+    'config:recommended',
+    'helpers:pinGitHubActionDigests',
+    'github>mrdynamo/dotfiles//.renovate/semanticCommits.json5',
+    'github>mrdynamo/dotfiles//.renovate/labels.json5',
+    'github>mrdynamo/dotfiles//.renovate/customManagers.json5',
+    'github>mrdynamo/dotfiles//.renovate/overrides.json5',
+    ':automergeBranch',
+    ':disableRateLimiting',
+    ':dependencyDashboard',
+    ':semanticCommits',
+    ':timezone(America/Chicago)',
   ],
-  dependencyDashboardTitle: "Renovate Dashboard 🤖",
+  dependencyDashboard: {
+    title: 'Renovate Dashboard 🤖',
+  },
   suppressNotifications: [
-    "prEditedNotification",
-    "prIgnoreNotification",
+    'prEditedNotification',
+    'prIgnoreNotification',
   ],
   enabledManagers: [
-    "mise",
-    "github-actions",
-    "custom.regex"
+    'mise',
+    'github-actions',
+    'custom.regex',
   ],
   includePaths: [
-    "home/dot_config/mise/private_config.toml",
-    "home/dot_config/mise/version",
-    "home/dot_config/keyring/packages.debian.conf",
-    "home/dot_config/keyring/packages.ubuntu.conf",
-    ".github/workflows/**",
+    'home/dot_config/mise/private_config.toml',
+    'home/dot_config/mise/version',
+    'home/dot_config/keyring/packages.debian.conf',
+    'home/dot_config/keyring/packages.ubuntu.conf',
+    '.github/workflows/**',
   ],
   packageRules: [
     {
-      // apt installs from the release pocket *and* the -updates/-security
-      // pockets, so the release pocket alone would propose stale versions.
-      // A custom manager may only set one registry URL, so the extra
-      // pockets are attached here.
-      description: "Track the Ubuntu release, updates and security pockets",
+      description: 'Track the Ubuntu release, updates and security pockets',
       matchFileNames: [
-        "home/dot_config/keyring/packages.ubuntu.conf",
+        'home/dot_config/keyring/packages.ubuntu.conf',
       ],
       registryUrls: [
-        "https://archive.ubuntu.com/ubuntu?suite=noble&components=main,universe&binaryArch=amd64",
-        "https://archive.ubuntu.com/ubuntu?suite=noble-updates&components=main,universe&binaryArch=amd64",
-        "https://archive.ubuntu.com/ubuntu?suite=noble-security&components=main,universe&binaryArch=amd64",
+        'https://archive.ubuntu.com/ubuntu?suite=noble&components=main,universe&binaryArch=amd64',
+        'https://archive.ubuntu.com/ubuntu?suite=noble-updates&components=main,universe&binaryArch=amd64',
+        'https://archive.ubuntu.com/ubuntu?suite=noble-security&components=main,universe&binaryArch=amd64',
       ],
     },
   ],
   mise: {
     managerFilePatterns: [
-      "/home/dot_config/mise/private_config\\.toml$/"
+      '/home/dot_config/mise/private_config\\.toml$/',
     ],
   },
 }
