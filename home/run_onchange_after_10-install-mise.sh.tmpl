@@ -17,7 +17,10 @@ if [[ -z "${MISE_VERSION}" ]]; then
     exit 0
 fi
 
-current="$(command -v mise >/dev/null 2>&1 && mise version || echo "none")"
+# `mise version` prints "2026.11.12 macos-arm64 (2026-11-21)"; keep only the
+# version field so it can match the bare pin.
+current="$(command -v mise >/dev/null 2>&1 && mise version 2>/dev/null | awk 'NR==1 {print $1}' || echo "none")"
+current="${current:-none}"
 if [[ "${current}" == "${MISE_VERSION}" ]]; then
     echo "mise ${MISE_VERSION} already installed"
     exit 0
